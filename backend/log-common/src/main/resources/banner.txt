@@ -1,0 +1,22 @@
+
+${AnsiColor.CYAN}  ██╗      ██████╗  ██████╗${AnsiColor.DEFAULT}
+${AnsiColor.CYAN}  ██║     ██╔═══██╗██╔════╝${AnsiColor.DEFAULT}
+${AnsiColor.CYAN}  ██║     ██║   ██║██║  ███╗${AnsiColor.DEFAULT}
+${AnsiColor.CYAN}  ██║     ██║   ██║██║   ██║${AnsiColor.DEFAULT}
+${AnsiColor.CYAN}  ███████╗╚██████╔╝╚██████╔╝${AnsiColor.DEFAULT}
+${AnsiColor.CYAN}  ╚══════╝ ╚═════╝  ╚═════╝${AnsiColor.DEFAULT}
+
+${AnsiColor.BRIGHT_YELLOW}  ██████╗ ███████╗████████╗███████╗ ██████╗████████╗██╗██╗   ██╗███████╗${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_YELLOW}  ██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔════╝╚══██╔══╝██║██║   ██║██╔════╝${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_YELLOW}  ██║  ██║█████╗     ██║   █████╗  ██║        ██║   ██║██║   ██║█████╗${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_YELLOW}  ██║  ██║██╔══╝     ██║   ██╔══╝  ██║        ██║   ██║╚██╗ ██╔╝██╔══╝${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_YELLOW}  ██████╔╝███████╗   ██║   ███████╗╚██████╗   ██║   ██║ ╚████╔╝ ███████╗${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_YELLOW}  ╚═════╝ ╚══════╝   ╚═╝   ╚══════╝ ╚═════╝   ╚═╝   ╚═╝  ╚═══╝  ╚══════╝${AnsiColor.DEFAULT}
+
+${AnsiColor.BRIGHT_WHITE}  Log Detection System${AnsiColor.DEFAULT}
+${AnsiColor.GREEN}  ──────────────────────────────────────────────────────────────────────${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_WHITE}  Service : ${AnsiColor.BRIGHT_CYAN}${spring.application.name}${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_WHITE}  Spring  : ${AnsiColor.BRIGHT_CYAN}${spring-boot.version}${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_WHITE}  Profile : ${AnsiColor.BRIGHT_CYAN}${spring.profiles.active:default}${AnsiColor.DEFAULT}
+${AnsiColor.GREEN}  ──────────────────────────────────────────────────────────────────────${AnsiColor.DEFAULT}
+

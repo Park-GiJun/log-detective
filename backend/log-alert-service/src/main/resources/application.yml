@@ -1,0 +1,31 @@
+server:
+  port: 28083
+
+spring:
+  application:
+    name: log-alert-service
+  config:
+    import: configserver:${CONFIG_SERVER_URL:http://localhost:28761}
+  cloud:
+    config:
+      username: ${CONFIG_USERNAME:config}
+      password: ${CONFIG_PASSWORD}
+
+  jpa:
+    properties:
+      hibernate:
+        default_schema: alert
+  flyway:
+    schemas: alert
+    default-schema: alert
+    table: flyway_schema_history
+
+logdetect:
+  alert:
+    dedupe-ttl-seconds: ${ALERT_DEDUPE_TTL:600}
+    dispatchers:
+      log:
+        enabled: true
+      webhook:
+        enabled: false
+        url: ${ALERT_WEBHOOK_URL:}

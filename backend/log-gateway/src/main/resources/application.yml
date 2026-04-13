@@ -1,0 +1,12 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: log-gateway
+  config:
+    import: configserver:${CONFIG_SERVER_URL:http://localhost:28761}
+  cloud:
+    config:
+      username: ${CONFIG_USERNAME:config}
+      password: ${CONFIG_PASSWORD}

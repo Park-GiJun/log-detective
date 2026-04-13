@@ -1,0 +1,44 @@
+# log-detective detekt 설정 — buildUponDefaultConfig = true 이므로 override/disable 위주
+
+build:
+  maxIssues: 0
+  excludeCorrectable: false
+
+complexity:
+  LongParameterList:
+    functionThreshold: 8
+    constructorThreshold: 10
+  TooManyFunctions:
+    thresholdInClasses: 20
+    thresholdInInterfaces: 15
+
+style:
+  MaxLineLength:
+    maxLineLength: 140
+  MagicNumber:
+    ignoreNumbers: ['-1', '0', '1', '2', '100', '1000']
+    ignoreHashCodeFunction: true
+    ignorePropertyDeclaration: true
+    ignoreConstantDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true
+    ignoreEnums: true
+  ReturnCount:
+    max: 4
+  UnusedPrivateMember:
+    allowedNames: "(_|ignored|expected|serialVersionUID)"
+  FunctionOnlyReturningConstant:
+    excludedFunctions: ['describeContents']
+
+naming:
+  FunctionNaming:
+    ignoreAnnotated: ['Composable', 'Test']
+  TopLevelPropertyNaming:
+    constantPattern: '[A-Z][_A-Z0-9]*'
+
+exceptions:
+  SwallowedException:
+    allowedExceptionNameRegex: '_|(ignore|expected).*'
+  TooGenericExceptionCaught:
+    exceptionNames:
+      - Error
+      - Throwable

@@ -1,0 +1,34 @@
+server:
+  port: 28082
+
+spring:
+  application:
+    name: log-detection-service
+  config:
+    import: configserver:${CONFIG_SERVER_URL:http://localhost:28761}
+  cloud:
+    config:
+      username: ${CONFIG_USERNAME:config}
+      password: ${CONFIG_PASSWORD}
+
+  jpa:
+    properties:
+      hibernate:
+        default_schema: detection
+  flyway:
+    schemas: detection
+    default-schema: detection
+    table: flyway_schema_history
+
+logdetect:
+  detection:
+    window-seconds: ${DETECTION_WINDOW_SECONDS:300}
+    rules:
+      brute-force:
+        enabled: true
+        threshold: 10
+      sql-injection:
+        enabled: true
+      error-rate-spike:
+        enabled: true
+        multiplier: 3.0

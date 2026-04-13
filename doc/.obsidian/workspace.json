@@ -1,0 +1,201 @@
+{
+  "main": {
+    "id": "ab839a3488c27e03",
+    "type": "split",
+    "children": [
+      {
+        "id": "cf4d4246ab46d309",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "d9929f5e5e840873",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "design/design.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "design"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "9967c8b342dcb9b9",
+    "type": "split",
+    "children": [
+      {
+        "id": "586218b5e3a60b97",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "7fdc62f46ad50e4b",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "파일 탐색기"
+            }
+          },
+          {
+            "id": "2ff3c48b50576f65",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "검색"
+            }
+          },
+          {
+            "id": "6c842c3f21efbea8",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "북마크"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "78a7a8048fc1a90d",
+    "type": "split",
+    "children": [
+      {
+        "id": "7227dfcdd77ee770",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "35002f4b40c292e8",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "design/design.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "design 의 백링크"
+            }
+          },
+          {
+            "id": "16f5a89b67946c95",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "design/design.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "design 의 나가는 링크"
+            }
+          },
+          {
+            "id": "6e69456474d23f5d",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "태그"
+            }
+          },
+          {
+            "id": "9f8e10abb6425906",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "모든 속성"
+            }
+          },
+          {
+            "id": "be70ad75a2ca41ae",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "design/design.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "design 의 개요"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:빠른 전환기 열기": false,
+      "graph:그래프 뷰 열기": false,
+      "canvas:새 캔버스 만들기": false,
+      "daily-notes:오늘의 일일 노트 열기": false,
+      "templates:템플릿 삽입": false,
+      "command-palette:명령어 팔레트 열기": false,
+      "bases:새 베이스 생성하기": false
+    }
+  },
+  "active": "d9929f5e5e840873",
+  "lastOpenFiles": [
+    "design/design.md.tmp.1110.1776086489643",
+    "design/design.md.tmp.1110.1776086486270",
+    "design/design.md.tmp.1110.1776086484789",
+    "design/design.md.tmp.1110.1776086483457",
+    "design/design.md.tmp.1110.1776086482191",
+    "design/design.md.tmp.1110.1776086481447",
+    "design/design.md.tmp.1110.1776086480218",
+    "design/design.md.tmp.1110.1776086479451",
+    "design/설계 문서.md",
+    "design/design.md",
+    "design.md.tmp.1110.1776085821384",
+    "design"
+  ]
+}
