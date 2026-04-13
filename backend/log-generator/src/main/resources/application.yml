@@ -1,0 +1,18 @@
+server:
+  port: 28090
+
+spring:
+  application:
+    name: log-generator
+  config:
+    import: configserver:${CONFIG_SERVER_URL:http://localhost:28761}
+  cloud:
+    config:
+      username: ${CONFIG_USERNAME:config}
+      password: ${CONFIG_PASSWORD}
+
+logdetect:
+  generator:
+    target-url: ${GENERATOR_TARGET:http://localhost:8084/api/logs}
+    events-per-second: ${GENERATOR_EPS:50}
+    attack-ratio: ${GENERATOR_ATTACK_RATIO:0.05}

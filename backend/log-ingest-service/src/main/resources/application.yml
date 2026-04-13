@@ -1,0 +1,25 @@
+server:
+  port: 28081
+
+spring:
+  application:
+    name: log-ingest-service
+  config:
+    import: configserver:${CONFIG_SERVER_URL:http://localhost:28761}
+  cloud:
+    config:
+      username: ${CONFIG_USERNAME:config}
+      password: ${CONFIG_PASSWORD}
+
+  jpa:
+    properties:
+      hibernate:
+        default_schema: ingest
+  flyway:
+    schemas: ingest
+    default-schema: ingest
+    table: flyway_schema_history
+
+logdetect:
+  ingest:
+    batch-max-size: ${INGEST_BATCH_MAX:500}
