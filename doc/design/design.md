@@ -2,11 +2,11 @@
 
 ## 1. 개요
 
-**log-detective**는 대량의 애플리케이션/시스템 로그에서 보안 위협·이상 징후·장애 패턴을 **실시간 탐지**하고 알림을 발송하는 시스템이다. `fds`(이상거래 탐지)의 아키텍처를 그대로 재사용하되, 도메인만 "금융 트랜잭션" → "로그 이벤트"로 치환한 것이다.
+**log-detective**는 대량의 애플리케이션/시스템 로그에서 보안 위협·이상 징후·장애 패턴을 **실시간 탐지**하고 알림을 발송하는 시스템이다. MSA + 이벤트 기반 + 헥사고날 아키텍처(Port & Adapter)를 기반으로 도메인 로직과 인프라를 분리하고, 규칙 기반 탐지 엔진과 Compose Web 대시보드를 포함한다.
 
 ### 1.1 왜 만드는가
 - 로그는 많지만 사람이 다 볼 수 없다 → 규칙 기반 + 통계 기반 탐지가 필요
-- fds 프로젝트에서 검증된 마이크로서비스/Kafka 파이프라인을 재활용해 학습/포트폴리오 목적으로 확장
+- Kafka 파이프라인과 헥사고날 아키텍처를 실전 도메인에 적용해 MSA/이벤트 기반 시스템 설계 역량을 드러낸다
 - Compose Web 프론트를 붙여 탐지 결과를 시각적으로 확인/시연
 
 ### 1.2 범위
@@ -214,7 +214,7 @@ interface DetectionRule {
 | Zipkin | 9411 | |
 | Kafka UI | 9090 | |
 
-> docker-compose는 현재 사용하지 않음. 인프라는 기존 fds 환경의 도커 네트워크 또는 로컬 네이티브 설치 재활용.
+> docker-compose는 현재 사용하지 않음. 이미 구동 중인 원격 공유 인프라에 `.env`로 접속하거나 로컬 네이티브 설치를 사용한다.
 
 ---
 
@@ -290,7 +290,7 @@ interface DetectionRule {
 | **Redis → Redisson 교체** | `RLock`, `RRateLimiter` 같은 고수준 자료구조 재사용. Spring Data Redis보다 DSL 편의성 우선 |
 | **Compose Web (Wasm)** | 프론트도 Kotlin으로 유지 — 학습 폭 확대, 타입 공유 가능성 |
 | **Spring Boot 4.0.5 + Kotlin 2.3.20** | 공식 지원은 Spring Boot 4.1부터지만, `extra["kotlin.version"]` 오버라이드로 선행 적용 |
-| **Config Server는 Eureka 서버에 합체** | fds 관행 유지, 운영 노드 최소화 |
+| **Config Server는 Eureka 서버에 합체** | 운영 노드 최소화 및 기동 순서 단순화 |
 
 ---
 

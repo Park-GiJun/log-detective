@@ -2,8 +2,6 @@
 
 애플리케이션/시스템 로그를 실시간 수집·분석하여 보안 위협·이상 징후·장애 패턴을 탐지하는 MSA 기반 백엔드 + Compose Web 대시보드.
 
-> `fds` 프로젝트의 아키텍처를 재사용했으며, 도메인만 금융 트랜잭션 → 로그 이벤트로 치환했다.
-
 ---
 
 ## 1. 프로젝트 개요
@@ -11,7 +9,7 @@
 ### 1.1 목표
 
 - 초당 수천 건의 로그 이벤트를 수집·영속화·검색·탐지하는 파이프라인 구축
-- fds에서 검증된 **MSA + 이벤트 기반 + 헥사고날 아키텍처** 관행을 재사용
+- **MSA + 이벤트 기반 + 헥사고날 아키텍처(Port & Adapter)** 기반으로 도메인 로직과 인프라를 분리
 - **규칙 기반 탐지 엔진** 6종(BruteForce, SQLi, ErrorSpike, OffHour, Geo, RareEvent) 구현
 - Kotlin Multiplatform(Wasm) 기반 Compose Web으로 대시보드/시각화 제공
 
@@ -112,10 +110,10 @@
 | **log-gateway** | **8084** | **외부 진입점 (유일한 1XXXX 미만)** |
 | log-generator | 28090 | 트래픽 시뮬레이터 |
 | compose-web (dev) | 3003 | Webpack dev server |
-| PostgreSQL | 5432 | `logdetect` DB (fds 공유 서버) |
-| Redis | 6380 | Redisson (fds 공유 서버) |
-| Kafka | 9094 | fds 공유 서버 |
-| Elasticsearch | 9201 | fds 공유 서버 |
+| PostgreSQL | 5432 | `logdetect` DB (원격 공유 서버) |
+| Redis | 6380 | Redisson (원격 공유 서버) |
+| Kafka | 9094 | 원격 공유 서버 |
+| Elasticsearch | 9201 | 원격 공유 서버 |
 
 ---
 
@@ -147,7 +145,7 @@ log-detective/
 ├── config/detekt/detekt.yml                  # detekt 전역 룰
 ├── doc/design/design.md                      # 설계문서
 ├── infra/init-db.sql                         # CREATE DATABASE logdetect
-└── .env / .env.example                       # fds 공유 인프라 접속 정보
+└── .env / .env.example                       # 원격 인프라 접속 정보
 ```
 
 ### 3.2 모듈별 기술 의존성
@@ -227,17 +225,19 @@ Redisson, ES, Ktor          인터페이스 + 구현체       model, enum
 
 ## 5. 인프라
 
-### 5.1 공유 인프라 사용
+### 5.1 원격 공유 인프라
 
-`log-detective`는 별도 `docker-compose.yml`을 두지 않고 **fds와 동일한 공유 인프라**(`210.121.177.150`)를 재사용한다.
+`log-detective`는 별도 `docker-compose.yml`을 두지 않고, 이미 구동 중인 원격 공유 인프라(PostgreSQL / Redis / Kafka / Elasticsearch)에 접속해 사용한다. 접속 정보는 `.env` 파일(gitignore 처리)에 있으며 `.env.example` 로 템플릿을 제공한다.
 
 ```
-.env
-├── DB_HOST=210.121.177.150     DB_NAME=logdetect     DB_USERNAME=stocksim
-├── REDIS_HOST=210.121.177.150  REDIS_PORT=6380
-├── KAFKA_BOOTSTRAP_SERVERS=210.121.177.150:9094
-└── ELASTICSEARCH_URIS=http://210.121.177.150:9201
+.env (예시)
+├── DB_HOST / DB_PORT / DB_NAME=logdetect / DB_USERNAME / DB_PASSWORD
+├── REDIS_HOST / REDIS_PORT / REDIS_PASSWORD
+├── KAFKA_BOOTSTRAP_SERVERS
+└── ELASTICSEARCH_URIS
 ```
+
+로컬 개발 시에는 `.env.example` 을 복사하여 로컬 Docker/네이티브 설치에 맞게 값을 채워 사용한다.
 
 ### 5.2 DB 스키마 격리
 

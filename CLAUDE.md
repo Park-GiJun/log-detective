@@ -2,10 +2,10 @@
 
 ## 프로젝트 정보
 - Kotlin 2.3.20 + Spring Boot 4.0.5 MSA 기반 **로그 탐지 시스템**
-- fds 아키텍처 재사용 (도메인: 금융 트랜잭션 → 로그 이벤트)
 - 헥사고날 아키텍처: `domain` / `application` / `infrastructure(adapter, config)`
 - 멀티모듈: `buildSrc` 로 의존성 관리, `backend/` + `frontend/` 분리
 - 프론트엔드: Compose Multiplatform 1.10.3 (Kotlin/Wasm, 3003 포트)
+- 규칙 기반 탐지 엔진 6종 (BruteForce / SQLi / ErrorSpike / OffHour / Geo / RareEvent)
 
 ## 코딩 규칙
 
@@ -169,4 +169,4 @@ doc/
 
 - **Spring Boot 4.0.5 + Kotlin 2.3.20** 조합은 공식 지원 이전 (Spring Boot 4.1 에서 공식 지원 예정). 컴파일/런타임은 정상이며 BOM 오버라이드로 대응 중. 이슈 발생 시 Kotlin 2.2.21 다운그레이드 검토.
 - **detekt 2.0.0-alpha.2** 는 알파 버전 — Kotlin 2.3 호환을 위한 선택. stable 릴리즈 시 교체 권장.
-- **인프라는 fds 공유 서버**(`210.121.177.150`) 재사용. `.env` 에 접속 정보가 있으며 `.gitignore` 처리됨. 원격 PostgreSQL 에 `logdetect` DB 수동 생성 필요.
+- **인프라는 원격 공유 서버**를 사용. `.env` 에 접속 정보가 있으며 `.gitignore` 처리됨. 원격 PostgreSQL 에 `logdetect` DB 수동 생성 필요.
