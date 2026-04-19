@@ -32,6 +32,7 @@ class SecurityConfig(
                 authorize("/actuator/info", permitAll)
                 authorize("/api/v1/generator/status", permitAll)
                 authorize("/api/v1/generator/**", hasRole("ADMIN"))
+                authorize("/api/v1/scenarios/**", hasRole("ADMIN"))
                 authorize(anyRequest, denyAll)
             }
             httpBasic { }
