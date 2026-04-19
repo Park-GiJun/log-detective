@@ -1,4 +1,4 @@
-package com.gijun.fds.common.web
+package com.gijun.logdetect.common.response
 
 import java.time.Instant
 
