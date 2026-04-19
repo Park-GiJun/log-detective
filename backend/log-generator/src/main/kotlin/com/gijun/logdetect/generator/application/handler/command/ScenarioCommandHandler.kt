@@ -7,7 +7,7 @@ import com.gijun.logdetect.generator.application.port.`in`.command.CreateScenari
 import com.gijun.logdetect.generator.application.port.`in`.command.DeleteScenarioUseCase
 import com.gijun.logdetect.generator.application.port.out.ScenarioPersistencePort
 import com.gijun.logdetect.generator.domain.model.Scenario
-import jakarta.transaction.Transactional
+import org.springframework.transaction.annotation.Transactional
 
 open class ScenarioCommandHandler(
     private val scenarioPersistencePort: ScenarioPersistencePort,
