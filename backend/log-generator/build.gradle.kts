@@ -11,6 +11,9 @@ dependencies {
     // Kafka (메시지 전송용)
     implementation(Dependencies.Spring.KAFKA)
 
+    // Redisson (Generator 상태 관리)
+    implementation(Dependencies.Redisson.SPRING_BOOT_STARTER)
+
     // JPA (시나리오 영속화)
     implementation(Dependencies.Spring.JPA)
     runtimeOnly(Dependencies.Database.POSTGRESQL)

@@ -4,6 +4,7 @@ import com.gijun.logdetect.generator.application.dto.command.GeneratorStartComma
 import com.gijun.logdetect.generator.application.port.`in`.command.BurstGeneratorUseCase
 import com.gijun.logdetect.generator.application.port.`in`.command.StartGeneratorUseCase
 import com.gijun.logdetect.generator.application.port.`in`.command.StopGeneratorUseCase
+import com.gijun.logdetect.generator.application.port.out.GeneratorStateCachePort
 import com.gijun.logdetect.generator.application.port.out.IngestSendClientPort
 import com.gijun.logdetect.generator.domain.enums.AttackType
 import com.gijun.logdetect.generator.domain.objects.LogEventFactory
@@ -19,25 +20,18 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
 class GeneratorCommandHandler(
     private val ingestSendClientPort: IngestSendClientPort,
+    private val generatorStateCachePort: GeneratorStateCachePort,
 ) : StartGeneratorUseCase, StopGeneratorUseCase, BurstGeneratorUseCase {
     private val logger = LoggerFactory.getLogger(this.javaClass)
 
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val running = AtomicBoolean(false)
-
-    val totalSent = AtomicLong(0)
-
-    val totalFailed = AtomicLong(0)
-
-    val currentRate = AtomicInteger(0)
 
     private var job: Job? = null
 
@@ -50,9 +44,8 @@ class GeneratorCommandHandler(
         }
 
         logger.info("Generator 시작 — rate: {}, fraudRatio: {}", command.rate, command.fraudRatio)
-        totalSent.set(0)
-        totalFailed.set(0)
-        currentRate.set(command.rate)
+        generatorStateCachePort.resetCounters()
+        generatorStateCachePort.markRunning(command.rate)
 
         job = scope.launch {
             var lastLogCount = 0L
@@ -64,10 +57,11 @@ class GeneratorCommandHandler(
 
                 sendBatch(command.rate, command.fraudRatio, semaphore)
 
-                val sent = totalSent.get()
+                val sent = generatorStateCachePort.getStatus().totalSent
                 if (logInterval > 0 && sent / logInterval > lastLogCount / logInterval) {
                     lastLogCount = sent
-                    logger.info("Generator 통계 — sent: {}, failed: {}", sent, totalFailed.get())
+                    val status = generatorStateCachePort.getStatus()
+                    logger.info("Generator 통계 — sent: {}, failed: {}", status.totalSent, status.totalFailed)
                 }
 
                 val elapsed = System.currentTimeMillis() - batchStart
@@ -85,8 +79,10 @@ class GeneratorCommandHandler(
 
         job?.cancel()
         job = null
-        currentRate.set(0)
-        logger.info("Generator 중지 — 총 sent: {}, failed: {}", totalSent.get(), totalFailed.get())
+        generatorStateCachePort.markStopped()
+
+        val status = generatorStateCachePort.getStatus()
+        logger.info("Generator 중지 — 총 sent: {}, failed: {}", status.totalSent, status.totalFailed)
     }
 
     override fun burstGenerator(command: GeneratorStartCommand) {
@@ -114,9 +110,9 @@ class GeneratorCommandHandler(
                     semaphore.withPermit {
                         val event = generateLogEvent(fraudRatio)
                         if (ingestSendClientPort.send(event)) {
-                            totalSent.incrementAndGet()
+                            generatorStateCachePort.incrementSent()
                         } else {
-                            totalFailed.incrementAndGet()
+                            generatorStateCachePort.incrementFailed()
                         }
                     }
                 }
