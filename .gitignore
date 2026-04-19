@@ -14,7 +14,8 @@ build/
 *.iws
 *.iml
 *.ipr
-out/
+/out/
+!**/src/**/out/
 .idea_modules/
 
 # Eclipse
