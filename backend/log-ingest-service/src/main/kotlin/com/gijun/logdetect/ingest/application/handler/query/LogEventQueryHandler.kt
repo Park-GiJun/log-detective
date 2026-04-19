@@ -1,6 +1,6 @@
 package com.gijun.logdetect.ingest.application.handler.query
 
-import com.gijun.fds.common.exception.DomainNotFoundException
+import com.gijun.logdetect.common.exception.DomainNotFoundException
 import com.gijun.logdetect.ingest.application.dto.result.LogEventResult
 import com.gijun.logdetect.ingest.application.port.`in`.query.GetLogEventUseCase
 import com.gijun.logdetect.ingest.application.port.out.LogEventPersistencePort

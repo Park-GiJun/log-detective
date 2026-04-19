@@ -1,4 +1,4 @@
-package com.gijun.fds.common.exception
+package com.gijun.logdetect.common.exception
 
 open class DomainNotFoundException(
     message: String = "Resource not found",
