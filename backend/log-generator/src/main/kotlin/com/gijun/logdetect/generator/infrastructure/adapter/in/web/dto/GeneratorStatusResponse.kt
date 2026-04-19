@@ -4,5 +4,5 @@ data class GeneratorStatusResponse(
     val running : Boolean,
     val totalSent : Long,
     val totalFailed: Long,
-    val configurationRate: Int
+    val configuredRate: Int
 )
