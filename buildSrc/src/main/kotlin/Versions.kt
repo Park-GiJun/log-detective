@@ -10,6 +10,8 @@ object Versions {
     // Frontend / Kotlin
     const val KOTLIN = "2.3.20"
     const val COMPOSE_MULTIPLATFORM = "1.10.3"
+    const val KOTLINX_SERIALIZATION = "1.8.1"
+    const val KOTLINX_COROUTINES = "1.10.2"
 
     // Test
     const val KOTEST = "6.1.0"

@@ -64,6 +64,13 @@ object Dependencies {
         const val KOTLIN_MODULE = "tools.jackson.module:jackson-module-kotlin"
     }
 
+    object Frontend {
+        const val KTOR_CLIENT_JS = "io.ktor:ktor-client-js:${Versions.KTOR}"
+        const val KTOR_SERIALIZATION_KOTLINX_JSON = "io.ktor:ktor-serialization-kotlinx-json:${Versions.KTOR}"
+        const val KOTLINX_SERIALIZATION_JSON = "org.jetbrains.kotlinx:kotlinx-serialization-json:${Versions.KOTLINX_SERIALIZATION}"
+        const val KOTLINX_COROUTINES = "org.jetbrains.kotlinx:kotlinx-coroutines-core:${Versions.KOTLINX_COROUTINES}"
+    }
+
     object Test {
         const val SPRING_BOOT_TEST = "org.springframework.boot:spring-boot-starter-test"
         const val SPRING_SECURITY_TEST = "org.springframework.boot:spring-boot-starter-security-test"

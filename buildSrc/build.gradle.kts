@@ -19,4 +19,5 @@ dependencies {
     implementation("org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.3.20")
     implementation("org.jlleitschuh.gradle:ktlint-gradle:12.1.2")
     implementation("dev.detekt:detekt-gradle-plugin:2.0.0-alpha.2")
+    implementation("org.jetbrains.kotlin:kotlin-serialization:2.3.20")
 }
