@@ -159,6 +159,31 @@ log-detective/
 | log-gateway | - | - | - | - | - | - | - |
 | log-eureka-server | - | - | - | - | - | - | - |
 
+### 3.3 log-generator — 로그 이벤트 시뮬레이터
+
+탐지 파이프라인을 검증하기 위해 `LogEvent` 도메인 모델 그대로의 **로그 이벤트**를 합성해 `log-gateway` 로 전송한다.  FDS 결제/가맹점 개념과 혼동 금지 — 이 모듈은 가맹점·카테고리·통화 개념을 갖지 않으며, 오직 `source` / `level` / `message` / `host` / `ip` / `userId` / `attributes` 조합만 생성한다.
+
+| 요소 | 내용 |
+|---|---|
+| **source 풀** | `auth-service`, `api-gateway`, `order-service`, `payment-service`, `admin-portal`, `legacy-batch`(희귀) |
+| **정상 로그** | INFO 85% / WARN 10% / ERROR 5% 가중 분포, 엔드포인트·상태코드·latency 속성 포함 |
+| **공격 시나리오** | `AttackType` enum 6종 — 탐지 규칙 R001~R006 과 1:1 매칭 |
+
+| AttackType | 매칭 규칙 | 합성 패턴 |
+|---|---|---|
+| `BRUTE_FORCE` | R001 BruteForceLoginRule | `auth-service` WARN, 동일 IP 대역(`211.45.x`) 반복 실패 |
+| `SQL_INJECTION` | R002 SqlInjectionPatternRule | `api-gateway` WARN, `message` 에 `UNION SELECT` / `' OR 1=1 --` 등 페이로드 주입 |
+| `ERROR_SPIKE` | R003 ErrorRateSpikeRule | `payment-service` ERROR 연속 (upstream timeout / 5xx / circuit breaker OPEN) |
+| `OFF_HOUR_ACCESS` | R004 OffHourAccessRule | `admin-portal` INFO, `timestamp` 강제 00~05시 KST + 관리자 userId(9001~9005) |
+| `GEO_ANOMALY` | R005 GeoAnomalyRule | `auth-service` INFO 로그인 성공 + 해외 IP 대역(54/124/81/51/94) |
+| `RARE_EVENT` | R006 RareEventRule | 희귀 source `legacy-batch` + ERROR + 드문 패턴명 |
+
+핵심 파일:
+- `domain/model/LogEvent.kt` — 전송 대상 도메인 모델
+- `domain/model/AttackType.kt` — 공격 시나리오 enum (R001~R006 매칭)
+- `domain/objects/LogEventFactory.kt` — `createNormal()` / `createSuspicious(type)` 팩토리
+- `application/handler/command/GeneratorCommandHandler.kt` — `fraudRatio` 에 따라 정상/공격 분기
+
 ---
 
 ## 4. 헥사고날 아키텍처 (Port & Adapter)
@@ -331,7 +356,7 @@ Spring Boot 4.0 BOM은 Kotlin 2.2.21을 관리한다. `buildSrc/log-spring-boot.
 | Phase | 내용 | 상태 |
 |---|---|---|
 | 0 | 스켈레톤 (모듈/포트/buildSrc/공통 설정) | ✅ 완료 |
-| 1 | 수집 파이프라인 (Ingest + Generator + Flyway) | 🚧 준비 |
+| 1 | 수집 파이프라인 (Ingest + Generator + Flyway) | 🚧 준비 (Generator 로그 이벤트 팩토리·AttackType 적용) |
 | 2 | 탐지 엔진 (DetectionRule 6종 + Redisson) | ⏳ 예정 |
 | 3 | 알림 (fingerprint 중복제거 + 디스패처) | ⏳ 예정 |
 | 4 | Gateway 라우팅 + compose-web 대시보드 | ⏳ 예정 |
