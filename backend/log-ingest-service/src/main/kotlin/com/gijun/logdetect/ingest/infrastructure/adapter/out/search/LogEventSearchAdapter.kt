@@ -1,14 +1,17 @@
 package com.gijun.logdetect.ingest.infrastructure.adapter.out.search
 
-import com.gijun.logdetect.common.domain.model.LogEvent
-import com.gijun.logdetect.ingest.application.port.out.LogEventSearchPort
 import co.elastic.clients.elasticsearch.ElasticsearchClient
 import co.elastic.clients.elasticsearch.core.BulkRequest
+import com.gijun.logdetect.common.domain.model.LogEvent
+import com.gijun.logdetect.ingest.application.port.out.LogEventSearchPort
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
+// Elasticsearch 동기 클라이언트 유지 — Dispatchers.IO 로 블로킹 호출 분리.
 @Component
 class LogEventSearchAdapter(
     private val elasticsearchClient: ElasticsearchClient,
@@ -16,7 +19,7 @@ class LogEventSearchAdapter(
 
     private val logger = LoggerFactory.getLogger(this.javaClass)
 
-    override fun index(event: LogEvent) {
+    override suspend fun index(event: LogEvent) = withContext(Dispatchers.IO) {
         val indexName = resolveIndexName(event)
         elasticsearchClient.index { builder ->
             builder
@@ -27,26 +30,26 @@ class LogEventSearchAdapter(
         logger.debug("ES 인덱싱 — index: {}, eventId: {}", indexName, event.eventId)
     }
 
-    override fun indexBatch(events: List<LogEvent>) {
+    override suspend fun indexBatch(events: List<LogEvent>) {
         if (events.isEmpty()) return
-
-        val bulkRequest = BulkRequest.Builder()
-        events.forEach { event ->
-            bulkRequest.operations { op ->
-                op.index { idx ->
-                    idx
-                        .index(resolveIndexName(event))
-                        .id(event.eventId.toString())
-                        .document(toDocument(event))
+        withContext(Dispatchers.IO) {
+            val bulkRequest = BulkRequest.Builder()
+            events.forEach { event ->
+                bulkRequest.operations { op ->
+                    op.index { idx ->
+                        idx
+                            .index(resolveIndexName(event))
+                            .id(event.eventId.toString())
+                            .document(toDocument(event))
+                    }
                 }
             }
-        }
-
-        val response = elasticsearchClient.bulk(bulkRequest.build())
-        if (response.errors()) {
-            logger.warn("ES 벌크 인덱싱 중 오류 발생 — {} 건 중 일부 실패", events.size)
-        } else {
-            logger.debug("ES 벌크 인덱싱 완료 — {} 건", events.size)
+            val response = elasticsearchClient.bulk(bulkRequest.build())
+            if (response.errors()) {
+                logger.warn("ES 벌크 인덱싱 중 오류 발생 — {} 건 중 일부 실패", events.size)
+            } else {
+                logger.debug("ES 벌크 인덱싱 완료 — {} 건", events.size)
+            }
         }
     }
 

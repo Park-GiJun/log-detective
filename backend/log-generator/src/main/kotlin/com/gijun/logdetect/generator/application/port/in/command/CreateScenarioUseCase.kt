@@ -4,5 +4,5 @@ import com.gijun.logdetect.generator.application.dto.command.CreateScenarioComma
 import com.gijun.logdetect.generator.application.dto.result.ScenarioResult
 
 interface CreateScenarioUseCase {
-    fun createScenario(command: CreateScenarioCommand): ScenarioResult
+    suspend fun createScenario(command: CreateScenarioCommand): ScenarioResult
 }

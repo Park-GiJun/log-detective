@@ -1,23 +1,31 @@
 object Dependencies {
 
     object Spring {
+        // Eureka 대시보드는 MVC 기반이므로 WEB 유지, 그 외 서비스는 WEBFLUX 사용
         const val WEB = "org.springframework.boot:spring-boot-starter-web"
+        const val WEBFLUX = "org.springframework.boot:spring-boot-starter-webflux"
         const val ACTUATOR = "org.springframework.boot:spring-boot-starter-actuator"
         const val VALIDATION = "org.springframework.boot:spring-boot-starter-validation"
         const val SECURITY = "org.springframework.boot:spring-boot-starter-security"
-        const val JPA = "org.springframework.boot:spring-boot-starter-data-jpa"
         const val KAFKA = "org.springframework.boot:spring-boot-starter-kafka"
         const val ELASTICSEARCH = "org.springframework.boot:spring-boot-starter-data-elasticsearch"
-        const val FLYWAY = "org.springframework.boot:spring-boot-starter-flyway"
+
+        // Flyway 마이그레이션은 JDBC 모드로 실행 (R2DBC 직접 지원 없음)
+        const val JDBC = "org.springframework.boot:spring-boot-starter-jdbc"
     }
 
     object SpringCloud {
         const val BOM = "org.springframework.cloud:spring-cloud-dependencies:${Versions.SPRING_CLOUD}"
-        const val GATEWAY_MVC = "org.springframework.cloud:spring-cloud-gateway-server-webmvc"
+        const val GATEWAY = "org.springframework.cloud:spring-cloud-starter-gateway-server-webflux"
         const val EUREKA_CLIENT = "org.springframework.cloud:spring-cloud-starter-netflix-eureka-client"
-        const val RESILIENCE4J = "org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j"
+        const val RESILIENCE4J_REACTOR = "org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j"
         const val CONFIG_SERVER = "org.springframework.cloud:spring-cloud-config-server"
         const val CONFIG_CLIENT = "org.springframework.cloud:spring-cloud-starter-config"
+    }
+
+    object R2dbc {
+        const val POSTGRESQL = "org.postgresql:r2dbc-postgresql"
+        const val POOL = "io.r2dbc:r2dbc-pool"
     }
 
     object Kotlin {
@@ -34,13 +42,15 @@ object Dependencies {
 
     object Exposed {
         const val CORE = "org.jetbrains.exposed:exposed-core:${Versions.EXPOSED}"
-        const val JDBC = "org.jetbrains.exposed:exposed-jdbc:${Versions.EXPOSED}"
-        const val KOTLIN_DATETIME = "org.jetbrains.exposed:exposed-kotlin-datetime:${Versions.EXPOSED}"
+        const val R2DBC = "org.jetbrains.exposed:exposed-r2dbc:${Versions.EXPOSED}"
+        const val JAVA_TIME = "org.jetbrains.exposed:exposed-java-time:${Versions.EXPOSED}"
         const val JSON = "org.jetbrains.exposed:exposed-json:${Versions.EXPOSED}"
     }
 
     object Database {
+        // Flyway 마이그레이션은 JDBC 드라이버 필요
         const val POSTGRESQL = "org.postgresql:postgresql"
+        const val FLYWAY_CORE = "org.flywaydb:flyway-core"
         const val FLYWAY_POSTGRESQL = "org.flywaydb:flyway-database-postgresql"
     }
 
@@ -57,7 +67,7 @@ object Dependencies {
     }
 
     object Docs {
-        const val SPRINGDOC = "org.springdoc:springdoc-openapi-starter-webmvc-ui:${Versions.SPRINGDOC}"
+        const val SPRINGDOC = "org.springdoc:springdoc-openapi-starter-webflux-ui:${Versions.SPRINGDOC}"
     }
 
     object Jackson {

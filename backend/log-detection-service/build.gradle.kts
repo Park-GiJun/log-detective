@@ -1,6 +1,6 @@
 plugins {
     id("log-spring-boot-service")
-    kotlin("plugin.jpa")
+    id("log-exposed-r2dbc")
 }
 
 dependencies {
@@ -8,12 +8,6 @@ dependencies {
 
     // Kafka
     implementation(Dependencies.Spring.KAFKA)
-
-    // JPA + Flyway + PostgreSQL
-    implementation(Dependencies.Spring.JPA)
-    implementation(Dependencies.Spring.FLYWAY)
-    implementation(Dependencies.Database.FLYWAY_POSTGRESQL)
-    runtimeOnly(Dependencies.Database.POSTGRESQL)
 
     // Redisson
     implementation(Dependencies.Redisson.SPRING_BOOT_STARTER)

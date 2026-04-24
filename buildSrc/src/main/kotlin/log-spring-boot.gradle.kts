@@ -14,15 +14,18 @@ dependencyManagement {
 }
 
 dependencies {
-    implementation(Dependencies.Spring.WEB)
+    implementation(Dependencies.Spring.WEBFLUX)
     implementation(Dependencies.Spring.ACTUATOR)
     implementation(Dependencies.Spring.VALIDATION)
     implementation(Dependencies.Spring.SECURITY)
     implementation(Dependencies.Jackson.KOTLIN_MODULE)
     implementation(Dependencies.SpringCloud.EUREKA_CLIENT)
     implementation(Dependencies.SpringCloud.CONFIG_CLIENT)
-    implementation(Dependencies.SpringCloud.RESILIENCE4J)
+    implementation(Dependencies.SpringCloud.RESILIENCE4J_REACTOR)
     implementation(Dependencies.Observability.MICROMETER_PROMETHEUS)
+
+    // 코루틴 Reactor 브리지 — suspend 함수 ↔ Mono/Flux 변환
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
 
     testImplementation(Dependencies.Test.SPRING_BOOT_TEST)
     testImplementation(Dependencies.Test.SPRING_SECURITY_TEST)

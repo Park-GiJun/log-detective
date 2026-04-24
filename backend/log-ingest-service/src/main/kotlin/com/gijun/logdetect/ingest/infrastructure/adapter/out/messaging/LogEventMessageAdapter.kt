@@ -4,6 +4,7 @@ import com.gijun.logdetect.common.domain.model.LogEvent
 import com.gijun.logdetect.common.message.LogEventMessage
 import com.gijun.logdetect.common.topic.KafkaTopics
 import com.gijun.logdetect.ingest.application.port.out.LogEventMessagePort
+import kotlinx.coroutines.future.await
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
@@ -15,13 +16,14 @@ class LogEventMessageAdapter(
 
     private val logger = LoggerFactory.getLogger(this.javaClass)
 
-    override fun publishRaw(event: LogEvent) {
+    override suspend fun publishRaw(event: LogEvent) {
         val message = LogEventMessage.from(event)
-        kafkaTemplate.send(KafkaTopics.LOGS_RAW, event.eventId.toString(), message)
+        // KafkaTemplate 는 CompletableFuture 를 반환 — suspend 로 브리지
+        kafkaTemplate.send(KafkaTopics.LOGS_RAW, event.eventId.toString(), message).await()
         logger.debug("Kafka 발행 — topic: {}, eventId: {}", KafkaTopics.LOGS_RAW, event.eventId)
     }
 
-    override fun publishRawBatch(events: List<LogEvent>) {
+    override suspend fun publishRawBatch(events: List<LogEvent>) {
         events.forEach { publishRaw(it) }
     }
 }

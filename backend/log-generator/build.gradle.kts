@@ -1,5 +1,6 @@
 plugins {
     id("log-spring-boot-service")
+    id("log-exposed-r2dbc")
 }
 
 dependencies {
@@ -13,10 +14,6 @@ dependencies {
 
     // Redisson (Generator 상태 관리)
     implementation(Dependencies.Redisson.SPRING_BOOT_STARTER)
-
-    // JPA (시나리오 영속화)
-    implementation(Dependencies.Spring.JPA)
-    runtimeOnly(Dependencies.Database.POSTGRESQL)
 
     // Ktor Client (로그 주입용)
     implementation(Dependencies.Ktor.CLIENT_CORE)

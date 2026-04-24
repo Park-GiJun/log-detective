@@ -4,5 +4,5 @@ import com.gijun.logdetect.generator.application.dto.query.GetScenarioQuery
 import com.gijun.logdetect.generator.application.dto.result.ScenarioResult
 
 interface GetScenarioUseCase {
-    fun getScenario(query: GetScenarioQuery): ScenarioResult
+    suspend fun getScenario(query: GetScenarioQuery): ScenarioResult
 }

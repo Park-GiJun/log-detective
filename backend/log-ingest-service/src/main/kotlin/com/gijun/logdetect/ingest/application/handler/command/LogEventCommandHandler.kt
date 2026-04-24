@@ -9,7 +9,6 @@ import com.gijun.logdetect.ingest.application.port.`in`.command.IngestEventUseCa
 import com.gijun.logdetect.ingest.application.port.out.LogEventMessagePort
 import com.gijun.logdetect.ingest.application.port.out.LogEventPersistencePort
 import com.gijun.logdetect.ingest.application.port.out.LogEventSearchPort
-import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 open class LogEventCommandHandler(
@@ -18,8 +17,7 @@ open class LogEventCommandHandler(
     private val logEventSearchPort: LogEventSearchPort,
 ) : IngestEventUseCase {
 
-    @Transactional
-    override fun ingest(command: IngestEventCommand): LogEventResult {
+    override suspend fun ingest(command: IngestEventCommand): LogEventResult {
         val event = toLogEvent(command)
         val (saved, ingestedAt) = logEventPersistencePort.save(event)
         logEventSearchPort.index(saved)
@@ -27,8 +25,7 @@ open class LogEventCommandHandler(
         return LogEventResult.from(saved, ingestedAt)
     }
 
-    @Transactional
-    override fun ingestBatch(command: IngestBatchCommand): List<LogEventResult> {
+    override suspend fun ingestBatch(command: IngestBatchCommand): List<LogEventResult> {
         val events = command.events.map { toLogEvent(it) }
         val savedPairs = logEventPersistencePort.saveAll(events)
         val savedEvents = savedPairs.map { it.first }

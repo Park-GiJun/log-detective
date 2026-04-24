@@ -24,7 +24,7 @@ class GeneratorController(
 ) {
 
     @GetMapping("/status")
-    fun getStatus(): ResponseEntity<GeneratorStatusResponse> {
+    suspend fun getStatus(): ResponseEntity<GeneratorStatusResponse> {
         val status = getGeneratorStatusUseCase.getGeneratorStatus()
         return ResponseEntity.ok(
             GeneratorStatusResponse(
@@ -37,19 +37,19 @@ class GeneratorController(
     }
 
     @PostMapping("/start")
-    fun start(@Valid @RequestBody request: GeneratorStartRequest): ResponseEntity<Void> {
+    suspend fun start(@Valid @RequestBody request: GeneratorStartRequest): ResponseEntity<Void> {
         startGeneratorUseCase.startGenerator(request.toCommand())
         return ResponseEntity.ok().build()
     }
 
     @PostMapping("/stop")
-    fun stop(): ResponseEntity<Void> {
+    suspend fun stop(): ResponseEntity<Void> {
         stopGeneratorUseCase.stopGenerator()
         return ResponseEntity.ok().build()
     }
 
     @PostMapping("/burst")
-    fun burst(@Valid @RequestBody request: GeneratorStartRequest): ResponseEntity<Void> {
+    suspend fun burst(@Valid @RequestBody request: GeneratorStartRequest): ResponseEntity<Void> {
         burstGeneratorUseCase.burstGenerator(request.toCommand())
         return ResponseEntity.ok().build()
     }

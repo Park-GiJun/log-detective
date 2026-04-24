@@ -5,7 +5,7 @@ import java.util.UUID
 
 interface GetLogEventUseCase {
 
-    fun getByEventId(eventId: UUID): LogEventResult
+    suspend fun getByEventId(eventId: UUID): LogEventResult
 
-    fun getRecent(limit: Int): List<LogEventResult>
+    suspend fun getRecent(limit: Int): List<LogEventResult>
 }

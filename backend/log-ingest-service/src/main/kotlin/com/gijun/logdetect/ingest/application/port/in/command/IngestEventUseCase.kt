@@ -6,7 +6,7 @@ import com.gijun.logdetect.ingest.application.dto.result.LogEventResult
 
 interface IngestEventUseCase {
 
-    fun ingest(command: IngestEventCommand): LogEventResult
+    suspend fun ingest(command: IngestEventCommand): LogEventResult
 
-    fun ingestBatch(command: IngestBatchCommand): List<LogEventResult>
+    suspend fun ingestBatch(command: IngestBatchCommand): List<LogEventResult>
 }

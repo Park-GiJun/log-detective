@@ -1,6 +1,6 @@
 plugins {
     id("log-spring-boot-service")
-    kotlin("plugin.jpa")
+    id("log-exposed-r2dbc")
 }
 
 dependencies {
@@ -9,13 +9,7 @@ dependencies {
     // Kafka
     implementation(Dependencies.Spring.KAFKA)
 
-    // JPA + Flyway
-    implementation(Dependencies.Spring.JPA)
-    implementation(Dependencies.Spring.FLYWAY)
-    implementation(Dependencies.Database.FLYWAY_POSTGRESQL)
-    runtimeOnly(Dependencies.Database.POSTGRESQL)
-
-    // Elasticsearch
+    // Elasticsearch (Reactive)
     implementation(Dependencies.Spring.ELASTICSEARCH)
 
     // Ktor Client

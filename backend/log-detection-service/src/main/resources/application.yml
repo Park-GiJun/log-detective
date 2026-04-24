@@ -11,10 +11,21 @@ spring:
       username: ${CONFIG_USERNAME:config}
       password: ${CONFIG_PASSWORD}
 
-  jpa:
+  r2dbc:
+    url: ${DB_R2DBC_URL:r2dbc:pool:postgresql://localhost:5432/logdetect}
+    username: ${DB_USERNAME:logdetect}
+    password: ${DB_PASSWORD}
     properties:
-      hibernate:
-        default_schema: detection
+      schema: detection
+    pool:
+      initial-size: 5
+      max-size: 20
+
+  datasource:
+    url: ${DB_JDBC_URL:jdbc:postgresql://localhost:5432/logdetect}
+    username: ${DB_USERNAME:logdetect}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
   flyway:
     schemas: detection
     default-schema: detection

@@ -3,6 +3,6 @@ plugins {
 }
 
 dependencies {
-    implementation(Dependencies.SpringCloud.GATEWAY_MVC)
+    implementation(Dependencies.SpringCloud.GATEWAY)
     implementation(Dependencies.Cache.CAFFEINE)
 }

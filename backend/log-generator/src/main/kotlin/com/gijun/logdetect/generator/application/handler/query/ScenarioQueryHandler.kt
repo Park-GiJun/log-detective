@@ -10,13 +10,13 @@ class ScenarioQueryHandler(
     private val scenarioPersistencePort: ScenarioPersistencePort,
 ) : GetScenarioUseCase, GetScenariosUseCase {
 
-    override fun getScenario(query: GetScenarioQuery): ScenarioResult {
+    override suspend fun getScenario(query: GetScenarioQuery): ScenarioResult {
         val scenario = requireNotNull(scenarioPersistencePort.findById(query.id)) {
             "시나리오를 찾을 수 없습니다: id=${query.id}"
         }
         return ScenarioResult.from(scenario)
     }
 
-    override fun getScenarios(): List<ScenarioResult> =
+    override suspend fun getScenarios(): List<ScenarioResult> =
         scenarioPersistencePort.findAll().map { ScenarioResult.from(it) }
 }

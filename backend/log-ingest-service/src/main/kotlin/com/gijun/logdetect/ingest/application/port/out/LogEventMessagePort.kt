@@ -4,7 +4,7 @@ import com.gijun.logdetect.common.domain.model.LogEvent
 
 interface LogEventMessagePort {
 
-    fun publishRaw(event: LogEvent)
+    suspend fun publishRaw(event: LogEvent)
 
-    fun publishRawBatch(events: List<LogEvent>)
+    suspend fun publishRawBatch(events: List<LogEvent>)
 }

@@ -1,5 +1,6 @@
 plugins {
     id("log-spring-boot-service")
+    id("log-exposed-r2dbc")
 }
 
 dependencies {
@@ -10,12 +11,6 @@ dependencies {
 
     // Redisson
     implementation(Dependencies.Redisson.SPRING_BOOT_STARTER)
-
-    // JPA + Flyway
-    implementation(Dependencies.Spring.JPA)
-    implementation(Dependencies.Spring.FLYWAY)
-    implementation(Dependencies.Database.FLYWAY_POSTGRESQL)
-    runtimeOnly(Dependencies.Database.POSTGRESQL)
 
     // Ktor Client
     implementation(Dependencies.Ktor.CLIENT_CORE)

@@ -29,25 +29,25 @@ class ScenarioController(
 ) {
 
     @PostMapping
-    fun create(@Valid @RequestBody request: CreateScenarioRequest): ResponseEntity<ScenarioResponse> {
+    suspend fun create(@Valid @RequestBody request: CreateScenarioRequest): ResponseEntity<ScenarioResponse> {
         val result = createScenarioUseCase.createScenario(request.toCommand())
         return ResponseEntity.status(HttpStatus.CREATED).body(ScenarioResponse.from(result))
     }
 
     @GetMapping
-    fun getAll(): ResponseEntity<List<ScenarioResponse>> {
+    suspend fun getAll(): ResponseEntity<List<ScenarioResponse>> {
         val results = getScenariosUseCase.getScenarios()
         return ResponseEntity.ok(results.map { ScenarioResponse.from(it) })
     }
 
     @GetMapping("/{id}")
-    fun getById(@PathVariable id: Long): ResponseEntity<ScenarioResponse> {
+    suspend fun getById(@PathVariable id: Long): ResponseEntity<ScenarioResponse> {
         val result = getScenarioUseCase.getScenario(GetScenarioQuery(id))
         return ResponseEntity.ok(ScenarioResponse.from(result))
     }
 
     @DeleteMapping("/{id}")
-    fun delete(@PathVariable id: Long): ResponseEntity<Void> {
+    suspend fun delete(@PathVariable id: Long): ResponseEntity<Void> {
         deleteScenarioUseCase.deleteScenario(DeleteScenarioCommand(id))
         return ResponseEntity.noContent().build()
     }
