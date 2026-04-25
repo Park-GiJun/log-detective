@@ -1,6 +1,6 @@
-package com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.repository
+package com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.logEvent.repository
 
-import com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.entity.LogEventEntity
+import com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.logEvent.entity.LogEventEntity
 import org.springframework.data.jpa.repository.JpaRepository
 import java.util.UUID
 
