@@ -32,3 +32,11 @@ dependencies {
     testImplementation(Dependencies.Test.KOTEST_EXTENSIONS_SPRING)
     testImplementation(Dependencies.Test.COROUTINES_TEST)
 }
+
+// 모든 Spring Boot 서비스의 실행/테스트 JVM 기본 타임존을 KST 로 고정.
+tasks.withType<org.springframework.boot.gradle.tasks.run.BootRun>().configureEach {
+    systemProperty("user.timezone", "Asia/Seoul")
+}
+tasks.withType<Test>().configureEach {
+    systemProperty("user.timezone", "Asia/Seoul")
+}

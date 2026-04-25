@@ -94,3 +94,9 @@ afterEvaluate {
         )
     }
 }
+
+// Windows Device Guard 정책으로 binaryen wasm-opt.exe 실행이 차단되는 환경 대응.
+// production wasm 최적화 단계만 비활성화 (dev/test 빌드는 영향 없음).
+tasks.matching { it.name == "compileProductionExecutableKotlinWasmJsOptimize" }.configureEach {
+    enabled = false
+}

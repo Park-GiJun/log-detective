@@ -8,7 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
-import java.time.ZoneOffset
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 // Elasticsearch 동기 클라이언트 유지 — Dispatchers.IO 로 블로킹 호출 분리.
@@ -53,8 +53,9 @@ class LogEventSearchAdapter(
         }
     }
 
+    // ES 인덱스 분할은 KST 일자 기준 (운영 가시성 — 한국 사용자 관점의 "오늘" 인덱스).
     private fun resolveIndexName(event: LogEvent): String {
-        val date = event.timestamp.atOffset(ZoneOffset.UTC).format(DATE_FORMAT)
+        val date = event.timestamp.atZone(KST).format(DATE_FORMAT)
         return "$INDEX_PREFIX$date"
     }
 
@@ -73,5 +74,6 @@ class LogEventSearchAdapter(
     companion object {
         private const val INDEX_PREFIX = "logs-"
         private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd")
+        private val KST: ZoneId = ZoneId.of("Asia/Seoul")
     }
 }

@@ -112,3 +112,22 @@ Spring Boot 4.0.5 + Kotlin 2.3.20 기반 MSA 를 반응형 스택으로 전환. 
 2. 동일 패턴 적용: generator → alert → detection
 3. log-gateway 라우팅 재구성
 4. 통합 빌드 검증 (`./gradlew build`)
+
+## 후속 적응 (2026-04-25, 빌드 통과)
+
+### Exposed v1.1.1 R2DBC API 적응 (build error → 통과)
+1. `Table.uuid()` 가 `Column<kotlin.uuid.Uuid>` 반환 — `org.jetbrains.exposed.v1.core.java.javaUUID()` 로 교체하여 `java.util.UUID` 유지 (도메인 변경 회피).
+2. `ColumnSet.source` 와 `LogEventsTable.source` 변수명 충돌 — DB 컬럼명은 `"source"` 유지, 변수만 `sourceCol` 로 변경.
+3. `SqlExpressionBuilder.eq` deprecated — top-level `org.jetbrains.exposed.v1.core.eq` 로 교체.
+4. `R2dbcDatabase.connect(connectionFactory)` 단일 인자 시그니처 부재 — `R2dbcDatabaseConfig.Builder { explicitDialect = PostgreSQLDialect() }` 명시.
+
+### 운영 — KST 타임존 4중 적용
+- `TimeZone.setDefault(Asia/Seoul)` 모든 6개 main 진입점 (Docker `java -jar` 포함 보장)
+- `log-spring-boot.gradle.kts` convention plugin 의 BootRun/Test 에 `-Duser.timezone=Asia/Seoul`
+- log-ingest-service / log-generator `application.yml` 에 `spring.jackson.time-zone: Asia/Seoul`
+- `LogEventPersistenceAdapter` / `LogEventSearchAdapter` 의 `ZoneOffset.UTC` → `ZoneId.of("Asia/Seoul")` (코드 의도 명확화 — `timestamptz` 자체는 offset 무관)
+
+### 환경 — Compose Wasm 빌드 우회
+- Windows Device Guard 정책으로 `binaryen/wasm-opt.exe` 실행 차단 환경 대응.
+- `frontend/compose-web/build.gradle.kts` 에서 `compileProductionExecutableKotlinWasmJsOptimize` 태스크 비활성화.
+- dev/test wasm 빌드는 영향 없음. production 산출물 크기만 미최적화 상태로 유지.

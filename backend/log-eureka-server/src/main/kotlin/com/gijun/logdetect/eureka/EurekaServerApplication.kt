@@ -4,6 +4,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 import org.springframework.cloud.config.server.EnableConfigServer
 import org.springframework.cloud.netflix.eureka.server.EnableEurekaServer
+import java.util.TimeZone
 
 @SpringBootApplication
 @EnableEurekaServer
@@ -11,5 +12,6 @@ import org.springframework.cloud.netflix.eureka.server.EnableEurekaServer
 class EurekaServerApplication
 
 fun main(args: Array<String>) {
+    TimeZone.setDefault(TimeZone.getTimeZone("Asia/Seoul"))
     runApplication<EurekaServerApplication>(*args)
 }

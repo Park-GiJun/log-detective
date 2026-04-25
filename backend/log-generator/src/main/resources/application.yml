@@ -10,6 +10,8 @@ spring:
     config:
       username: ${CONFIG_USERNAME:config}
       password: ${CONFIG_PASSWORD}
+  jackson:
+    time-zone: Asia/Seoul
 
   r2dbc:
     url: ${DB_R2DBC_URL:r2dbc:pool:postgresql://localhost:5432/logdetect}

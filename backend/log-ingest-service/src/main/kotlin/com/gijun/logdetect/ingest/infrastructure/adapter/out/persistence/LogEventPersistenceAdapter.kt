@@ -3,17 +3,19 @@ package com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence
 import com.gijun.logdetect.common.domain.model.LogEvent
 import com.gijun.logdetect.ingest.application.port.out.LogEventPersistencePort
 import com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.table.LogEventsTable
+import com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.table.LogEventsTable.eventTimestamp
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 import org.jetbrains.exposed.v1.r2dbc.batchInsert
 import org.jetbrains.exposed.v1.r2dbc.insert
 import org.jetbrains.exposed.v1.r2dbc.selectAll
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import java.time.Instant
-import java.time.ZoneOffset
+import java.time.ZoneId
 import java.util.UUID
 
 class LogEventPersistenceAdapter(
@@ -24,10 +26,10 @@ class LogEventPersistenceAdapter(
         suspendTransaction(db = database) {
             val inserted = LogEventsTable.insert { row ->
                 row[eventId] = event.eventId
-                row[source] = event.source
+                row[sourceCol] = event.source
                 row[level] = event.level
                 row[message] = event.message
-                row[eventTimestamp] = event.timestamp.atOffset(ZoneOffset.UTC)
+                row[eventTimestamp] = event.timestamp.atZone(KST).toOffsetDateTime()
                 row[host] = event.host
                 row[ip] = event.ip
                 row[userId] = event.userId
@@ -41,16 +43,16 @@ class LogEventPersistenceAdapter(
         return suspendTransaction(db = database) {
             val inserted = LogEventsTable.batchInsert(events) { event ->
                 this[LogEventsTable.eventId] = event.eventId
-                this[LogEventsTable.source] = event.source
+                this[LogEventsTable.sourceCol] = event.source
                 this[LogEventsTable.level] = event.level
                 this[LogEventsTable.message] = event.message
-                this[LogEventsTable.eventTimestamp] = event.timestamp.atOffset(ZoneOffset.UTC)
+                this[LogEventsTable.eventTimestamp] = event.timestamp.atZone(KST).toOffsetDateTime()
                 this[LogEventsTable.host] = event.host
                 this[LogEventsTable.ip] = event.ip
                 this[LogEventsTable.userId] = event.userId
                 this[LogEventsTable.attributes] = event.attributes.ifEmpty { null }
             }
-            val ingestedAtByEventId = inserted.associate {
+            val ingestedAtByEventId: Map<UUID, Instant> = inserted.associate {
                 it[LogEventsTable.eventId] to it[LogEventsTable.ingestedAt].toInstant()
             }
             val now = Instant.now()
@@ -76,10 +78,14 @@ class LogEventPersistenceAdapter(
                 .toList()
         }
 
+    private companion object {
+        private val KST: ZoneId = ZoneId.of("Asia/Seoul")
+    }
+
     private fun ResultRow.toDomain(): Pair<LogEvent, Instant> {
         val event = LogEvent(
             eventId = this[LogEventsTable.eventId],
-            source = this[LogEventsTable.source],
+            source = this[LogEventsTable.sourceCol],
             level = this[LogEventsTable.level],
             message = this[LogEventsTable.message],
             timestamp = this[LogEventsTable.eventTimestamp].toInstant(),
