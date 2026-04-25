@@ -107,10 +107,13 @@
 - `alerts.dispatched` 발행으로 하위 시스템 팬아웃 여지 확보
 
 ### 3.7 log-generator (:28090)
-**책임**: 로그 트래픽 시뮬레이터
+**책임**: 시나리오 기반 로그 트래픽 시뮬레이터
 - Kotlin Coroutine 기반 동시 전송
-- 정상 로그 + 의도적 공격 패턴(BruteForce, SQLi, 비정상 시간대) 주입
-- Ktor Client로 `log-gateway`에 POST
+- **`Scenario` 도메인을 1차 입력으로 사용** — `name / type:RequestType(KAFKA|FILE|REST) / attackType / successful / rate / fraudRatio[0~100%]`
+- Generator 시작 시 `scenarioId` 만 받아 시나리오 정의대로 동작 (rate=EPS, fraudRatio/100=의 비율로 사기 이벤트 생성)
+- **시나리오별 독립 실행** — 인메모리 `ConcurrentMap<Long, Job>` + Redisson 키 namespace `generator:state:{scenarioId}:*`, 동시에 여러 시나리오 가동 가능
+- AttackType 6종 × `successful` true/false 분기로 6규칙(R001~R006) 모두 정상/실패 변형 합성
+- RequestType 분기에 따라 REST(`IngestSendClientPort`) / KAFKA(`IngestSendMessagePort`) / FILE(`IngestSendFilePort`) 어댑터 선택
 
 ### 3.8 compose-web (:3003, 프론트)
 **책임**: 테스트/시각화 대시보드

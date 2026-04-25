@@ -8,7 +8,9 @@ import com.gijun.logdetect.generator.infrastructure.adapter.`in`.web.dto.Generat
 import com.gijun.logdetect.generator.infrastructure.adapter.`in`.web.dto.GeneratorStatusResponse
 import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -23,17 +25,11 @@ class GeneratorController(
     private val getGeneratorStatusUseCase: GetGeneratorStatusUseCase,
 ) {
 
+    /** 실행 중이거나 카운터가 남아있는 모든 시나리오의 상태. */
     @GetMapping("/status")
-    fun getStatus(): ResponseEntity<GeneratorStatusResponse> {
-        val status = getGeneratorStatusUseCase.getGeneratorStatus()
-        return ResponseEntity.ok(
-            GeneratorStatusResponse(
-                running = status.running,
-                totalSent = status.totalSent,
-                totalFailed = status.totalFailed,
-                configuredRate = status.configuredRate,
-            ),
-        )
+    fun getStatuses(): ResponseEntity<List<GeneratorStatusResponse>> {
+        val statuses = getGeneratorStatusUseCase.getGeneratorStatuses()
+        return ResponseEntity.ok(statuses.map { GeneratorStatusResponse.from(it) })
     }
 
     @PostMapping("/start")
@@ -42,9 +38,17 @@ class GeneratorController(
         return ResponseEntity.ok().build()
     }
 
-    @PostMapping("/stop")
-    fun stop(): ResponseEntity<Void> {
-        stopGeneratorUseCase.stopGenerator()
+    /** 단일 시나리오 정지. */
+    @DeleteMapping("/stop/{scenarioId}")
+    fun stop(@PathVariable scenarioId: Long): ResponseEntity<Void> {
+        stopGeneratorUseCase.stopGenerator(scenarioId)
+        return ResponseEntity.ok().build()
+    }
+
+    /** 전체 시나리오 정지. */
+    @DeleteMapping("/stop-all")
+    fun stopAll(): ResponseEntity<Void> {
+        stopGeneratorUseCase.stopAll()
         return ResponseEntity.ok().build()
     }
 

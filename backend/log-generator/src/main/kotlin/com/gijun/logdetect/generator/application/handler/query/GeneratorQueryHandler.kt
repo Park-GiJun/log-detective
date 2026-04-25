@@ -8,6 +8,6 @@ class GeneratorQueryHandler(
     private val generatorStateCachePort: GeneratorStateCachePort,
 ) : GetGeneratorStatusUseCase {
 
-    override fun getGeneratorStatus(): GeneratorStatus =
-        generatorStateCachePort.getStatus()
+    override fun getGeneratorStatuses(): List<GeneratorStatus> =
+        generatorStateCachePort.getAllStatuses()
 }
