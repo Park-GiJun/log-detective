@@ -86,11 +86,12 @@
 - Caffeine 기반 로컬 캐시로 토큰/레이트리밋 경량 처리
 
 ### 3.4 log-ingest-service (:28081)
-**책임**: 로그 수집 + 영속화 + Kafka 발행
+**책임**: 로그 수집 + 영속화 + ES/Kafka 발행 (Outbox 패턴으로 트랜잭션 보장)
 - `POST /api/logs` / `POST /api/logs/batch` 엔드포인트
-- 수신 즉시 PostgreSQL(`log_events` 테이블) + Elasticsearch(`logs-YYYY.MM.DD` 인덱스) 이중 저장
-- `logs.raw` 토픽으로 발행
-- Flyway로 스키마 마이그레이션 관리
+- **Handler 흐름** — `log_events` INSERT 와 `outbox_messages` INSERT (ES + KAFKA 두 행) 를 같은 `@Transactional` 안에서 수행. 외부 시스템 (ES / Kafka) 직접 호출 없음.
+- **OutboxPublisher** (`infrastructure/scheduler`) — `@Scheduled` 1초 폴링으로 PENDING 행을 `SELECT FOR UPDATE SKIP LOCKED` 로 가져와 channel 별로 dispatch (`logs.raw` Kafka 토픽 / `logs-YYYY.MM.DD` ES 인덱스). 실패 시 지수 백오프, 5회 초과 시 DLQ(status=DEAD).
+- 결과: DB 커밋되면 발행은 결국 일어남(at-least-once). ES/Kafka 컨슈머는 `eventId` 로 멱등성 보장.
+- Flyway로 스키마 마이그레이션 관리 (`log_events`, `outbox_messages`)
 
 ### 3.5 log-detection-service (:28082)
 **책임**: 규칙 기반 탐지 엔진
