@@ -95,6 +95,14 @@
 - prefix 규칙: `security/` > `refactor/` > `perf/` > `feat/` > `test/` > `chore/`
 - 브랜치명: `{prefix}/issue-{번호}-{slug}`
 
+### `/create-entity-from-domain` — 도메인 → JPA Entity 자동 생성
+- `/create-entity-from-domain {도메인 .kt 경로}` — 예: `/create-entity-from-domain backend/log-ingest-service/.../domain/model/Outbox.kt`
+- 출력: `infrastructure/adapter/out/persistence/{domain}/entity/{Domain}Entity.kt`
+- 매핑: `Long?` id → `@Id IDENTITY`, Enum → `@Enumerated(STRING)`, Map/List → `@JdbcTypeCode JSON + JSONB`, camelCase → snake_case
+- DDL 우선 — 같은 모듈 `db/migration/V*.sql` 이 있으면 거기서 테이블명/nullable/length 가져옴 (도메인보다 진실)
+- `toDomain()` + `companion.from(domain)` 변환 메서드 자동 포함
+- 헥사고날 경계 검증 (도메인 파일이 `domain/model/` 에 있는지)
+
 ### `/review` — 커밋 단위 코드 리뷰
 - 6 Reviewers + 2 Leads 가 리뷰
 - 산출물: `doc/review/YYYY-MM-DD-{hash}.md`, `doc/lessons/{주제}.md`, `doc/memory/project-context.md` 누적 업데이트

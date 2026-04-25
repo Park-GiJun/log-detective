@@ -13,30 +13,15 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "design/design.md",
+                "file": "schemas/implementation-guide.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "design"
-            }
-          },
-          {
-            "id": "e97b3333ff8fa9cd",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "설계중 고민.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "설계중 고민"
+              "title": "implementation-guide"
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -93,7 +78,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 259.5,
+    "collapsed": true
   },
   "right": {
     "id": "78a7a8048fc1a90d",
@@ -198,14 +184,26 @@
       "bases:새 베이스 생성하기": false
     }
   },
-  "active": "e97b3333ff8fa9cd",
+  "active": "d9929f5e5e840873",
   "lastOpenFiles": [
-    "design/design.md",
-    "설계중 고민.md",
-    "thick",
+    "schemas/service-design.md.tmp.860.1777125919336",
+    "design/design.md.tmp.860.1777125902162",
     "schemas/service-design.md",
     "schemas/k6-test-scenarios.md",
     "schemas/implementation-guide.md",
+    "review/2026-04-19-b48306a.md",
+    "review/2026-04-19-3d4a224.md",
+    "memory/project-context.md",
+    "lessons/transactional-import.md",
+    "lessons/transactional-boundary.md",
+    "lessons/input-validation-boundary.md",
+    "lessons/domain-type-consistency.md",
+    "design/design.md",
+    "무제.canvas",
+    "무제 2.canvas",
+    "무제 1.canvas",
+    "설계중 고민.md",
+    "thick",
     "design/design.md.tmp.1110.1776086489643",
     "design/design.md.tmp.1110.1776086486270",
     "design/design.md.tmp.1110.1776086484789",
@@ -214,7 +212,6 @@
     "design/design.md.tmp.1110.1776086481447",
     "design/design.md.tmp.1110.1776086480218",
     "design/design.md.tmp.1110.1776086479451",
-    "design/설계 문서.md",
-    "design.md.tmp.1110.1776085821384"
+    "design/설계 문서.md"
   ]
 }
