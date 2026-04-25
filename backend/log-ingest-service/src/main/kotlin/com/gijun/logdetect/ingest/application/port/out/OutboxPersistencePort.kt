@@ -3,7 +3,7 @@ package com.gijun.logdetect.ingest.application.port.out
 import com.gijun.logdetect.ingest.domain.model.Outbox
 import java.time.Instant
 
-interface OutBoxPersistencePort {
+interface OutboxPersistencePort {
     fun saveAll(outbox: List<Outbox>)
     fun fetchPublished(transactionId: String) : List<Outbox>
     fun markPublished(transactionId: String)
