@@ -65,30 +65,47 @@ object LogEventFactory {
 
     // ─────────────────────────────── 공격 시나리오 ───────────────────────────────
 
-    fun createSuspicious(type: AttackType): LogEvent = when (type) {
-        AttackType.BRUTE_FORCE -> bruteForceLoginFailure()
-        AttackType.SQL_INJECTION -> sqlInjectionAttempt()
-        AttackType.ERROR_SPIKE -> errorSpike()
-        AttackType.OFF_HOUR_ACCESS -> offHourAdminLogin()
-        AttackType.GEO_ANOMALY -> geoAnomalyLogin()
-        AttackType.RARE_EVENT -> rareEvent()
+    /**
+     * 시나리오 기반 공격 로그 합성.
+     *
+     * @param successful 시나리오 정의의 성공/실패 플래그. 모든 attackType 이 분기를 갖되 의미는 다음과 같다:
+     *  - BRUTE_FORCE: true=결국 뚫림(SUCCESS), false=반복 실패(기본)
+     *  - SQL_INJECTION: true=페이로드 통과(200), false=차단(403, 기본)
+     *  - ERROR_SPIKE: true=복구 로그(INFO, "recovered"), false=ERROR 발생(기본)
+     *  - OFF_HOUR_ACCESS: true=새벽 admin login 성공(기본), false=실패
+     *  - GEO_ANOMALY: true=해외 로그인 성공(기본), false=실패
+     *  - RARE_EVENT: true=정상 복귀(INFO), false=드문 ERROR(기본)
+     */
+    fun createSuspicious(type: AttackType, successful: Boolean): LogEvent = when (type) {
+        AttackType.BRUTE_FORCE -> bruteForceLogin(successful)
+        AttackType.SQL_INJECTION -> sqlInjectionAttempt(successful)
+        AttackType.ERROR_SPIKE -> errorSpike(successful)
+        AttackType.OFF_HOUR_ACCESS -> offHourAdminLogin(successful)
+        AttackType.GEO_ANOMALY -> geoAnomalyLogin(successful)
+        AttackType.RARE_EVENT -> rareEvent(successful)
     }
 
-    /** R001: auth-service 에서 동일 IP 의 로그인 실패가 반복되는 패턴 */
-    private fun bruteForceLoginFailure(): LogEvent {
+    /** R001: 동일 IP 반복. successful=true 면 brute force 가 뚫린 드문 케이스. */
+    private fun bruteForceLogin(successful: Boolean): LogEvent {
         val userId = normalUserIds.random()
-        // IP 다양성을 억제해 슬라이딩 윈도우가 같은 IP로 계속 쌓이도록 유도
         val ip = "211.45.${Random.nextInt(0, 5)}.${Random.nextInt(1, 255)}"
+        val outcome = if (successful) "SUCCESS" else "FAILURE"
+        val level = if (successful) "WARN" else "WARN"
+        val message = if (successful) {
+            "authentication success userId=$userId after_repeated_failures=true"
+        } else {
+            "authentication failed userId=$userId reason=invalid_password"
+        }
         return buildEvent(
             source = "auth-service",
-            level = "WARN",
+            level = level,
             userId = userId,
             ip = ip,
-            message = "authentication failed userId=$userId reason=invalid_password",
+            message = message,
             attributes = mapOf(
                 "action" to "login",
-                "outcome" to "FAILURE",
-                "reason" to "invalid_password",
+                "outcome" to outcome,
+                "reason" to if (successful) "credential_match" else "invalid_password",
                 "attackType" to AttackType.BRUTE_FORCE.name,
                 "suspicious" to "true",
             ),
@@ -96,19 +113,24 @@ object LogEventFactory {
         )
     }
 
-    /** R002: message 에 SQLi 시그니처가 포함된 요청 로그 */
-    private fun sqlInjectionAttempt(): LogEvent {
+    /** R002: SQLi 시그니처. successful=true 면 페이로드가 차단되지 않고 200 통과. */
+    private fun sqlInjectionAttempt(successful: Boolean): LogEvent {
         val payload = sqlInjectionPayloads.random()
         val endpoint = "/api/products/search"
+        val statusCode = if (successful) "200" else "403"
+        val level = if (successful) "INFO" else "WARN"
+        val outcome = if (successful) "PASSED" else "BLOCKED"
         return buildEvent(
             source = "api-gateway",
-            level = "WARN",
+            level = level,
             userId = normalUserIds.random(),
             ip = foreignIp(),
-            message = "suspicious query endpoint=$endpoint query=name=$payload",
+            message = "suspicious query endpoint=$endpoint status=$statusCode query=name=$payload",
             attributes = mapOf(
                 "endpoint" to endpoint,
                 "payload" to payload,
+                "statusCode" to statusCode,
+                "outcome" to outcome,
                 "attackType" to AttackType.SQL_INJECTION.name,
                 "suspicious" to "true",
             ),
@@ -116,49 +138,77 @@ object LogEventFactory {
         )
     }
 
-    /** R003: 특정 source 에서 ERROR 로그가 연속 발생하는 패턴 */
-    private fun errorSpike(): LogEvent {
+    /** R003: 특정 source 에서 ERROR 로그 연속 발생. successful=true 면 복구 로그. */
+    private fun errorSpike(successful: Boolean): LogEvent {
         val source = "payment-service"
-        val reason = listOf(
-            "upstream timeout",
-            "connection reset",
-            "500 internal server error",
-            "circuit breaker OPEN",
-        ).random()
-        return buildEvent(
-            source = source,
-            level = "ERROR",
-            userId = normalUserIds.random(),
-            ip = domesticIp(),
-            message = "$reason endpoint=/api/payments/charge",
-            attributes = mapOf(
-                "endpoint" to "/api/payments/charge",
-                "statusCode" to "500",
-                "reason" to reason,
-                "attackType" to AttackType.ERROR_SPIKE.name,
-                "suspicious" to "true",
-            ),
-            timestamp = Instant.now(),
-        )
+        val endpoint = "/api/payments/charge"
+        val userId = normalUserIds.random()
+        return if (successful) {
+            buildEvent(
+                source = source,
+                level = "INFO",
+                userId = userId,
+                ip = domesticIp(),
+                message = "recovered from upstream error endpoint=$endpoint",
+                attributes = mapOf(
+                    "endpoint" to endpoint,
+                    "statusCode" to "200",
+                    "outcome" to "RECOVERED",
+                    "attackType" to AttackType.ERROR_SPIKE.name,
+                    "suspicious" to "true",
+                ),
+                timestamp = Instant.now(),
+            )
+        } else {
+            val reason = listOf(
+                "upstream timeout",
+                "connection reset",
+                "500 internal server error",
+                "circuit breaker OPEN",
+            ).random()
+            buildEvent(
+                source = source,
+                level = "ERROR",
+                userId = userId,
+                ip = domesticIp(),
+                message = "$reason endpoint=$endpoint",
+                attributes = mapOf(
+                    "endpoint" to endpoint,
+                    "statusCode" to "500",
+                    "reason" to reason,
+                    "outcome" to "FAILURE",
+                    "attackType" to AttackType.ERROR_SPIKE.name,
+                    "suspicious" to "true",
+                ),
+                timestamp = Instant.now(),
+            )
+        }
     }
 
-    /** R004: 관리자 계정이 새벽 0~5시(KST) 에 로그인에 성공한 패턴 */
-    private fun offHourAdminLogin(): LogEvent {
+    /** R004: 새벽 0~5시(KST) 관리자 접근. successful=false 면 시도만 실패. */
+    private fun offHourAdminLogin(successful: Boolean): LogEvent {
         val adminId = adminUserIds.random()
         val offHourTimestamp = ZonedDateTime.now(ZoneId.of("Asia/Seoul"))
             .withHour(Random.nextInt(0, 5))
             .withMinute(Random.nextInt(0, 60))
             .withSecond(Random.nextInt(0, 60))
             .toInstant()
+        val outcome = if (successful) "SUCCESS" else "FAILURE"
+        val level = if (successful) "INFO" else "WARN"
+        val message = if (successful) {
+            "admin login success userId=$adminId"
+        } else {
+            "admin login failed userId=$adminId reason=invalid_password"
+        }
         return buildEvent(
             source = "admin-portal",
-            level = "INFO",
+            level = level,
             userId = adminId,
             ip = domesticIp(),
-            message = "admin login success userId=$adminId",
+            message = message,
             attributes = mapOf(
                 "action" to "login",
-                "outcome" to "SUCCESS",
+                "outcome" to outcome,
                 "accountType" to "ADMIN",
                 "attackType" to AttackType.OFF_HOUR_ACCESS.name,
                 "suspicious" to "true",
@@ -167,18 +217,25 @@ object LogEventFactory {
         )
     }
 
-    /** R005: 동일 userId 가 직전 로그인과 물리적으로 불가능한 거리(해외 IP)에서 접근 */
-    private fun geoAnomalyLogin(): LogEvent {
+    /** R005: 해외 IP 접근. successful=false 면 인증 실패. */
+    private fun geoAnomalyLogin(successful: Boolean): LogEvent {
         val userId = normalUserIds.random()
+        val outcome = if (successful) "SUCCESS" else "FAILURE"
+        val level = if (successful) "INFO" else "WARN"
+        val message = if (successful) {
+            "authentication success userId=$userId"
+        } else {
+            "authentication failed userId=$userId reason=invalid_password"
+        }
         return buildEvent(
             source = "auth-service",
-            level = "INFO",
+            level = level,
             userId = userId,
             ip = foreignIp(),
-            message = "authentication success userId=$userId",
+            message = message,
             attributes = mapOf(
                 "action" to "login",
-                "outcome" to "SUCCESS",
+                "outcome" to outcome,
                 "attackType" to AttackType.GEO_ANOMALY.name,
                 "suspicious" to "true",
             ),
@@ -186,17 +243,25 @@ object LogEventFactory {
         )
     }
 
-    /** R006: 평소 관측되지 않는 source+level+pattern 조합 */
-    private fun rareEvent(): LogEvent {
+    /** R006: 드문 source+level+pattern 조합. successful=true 면 정상 복귀(INFO), false 면 ERROR. */
+    private fun rareEvent(successful: Boolean): LogEvent {
         val rarePattern = "deprecated_handler_invoked"
+        val level = if (successful) "INFO" else "ERROR"
+        val outcome = if (successful) "RECOVERED" else "FAILURE"
+        val message = if (successful) {
+            "rare pattern recovered pattern=$rarePattern"
+        } else {
+            "rare pattern detected pattern=$rarePattern"
+        }
         return buildEvent(
             source = RARE_SOURCE,
-            level = "ERROR",
+            level = level,
             userId = null,
             ip = domesticIp(),
-            message = "rare pattern detected pattern=$rarePattern",
+            message = message,
             attributes = mapOf(
                 "pattern" to rarePattern,
+                "outcome" to outcome,
                 "attackType" to AttackType.RARE_EVENT.name,
                 "suspicious" to "true",
             ),

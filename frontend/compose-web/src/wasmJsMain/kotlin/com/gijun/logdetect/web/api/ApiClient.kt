@@ -6,12 +6,18 @@ import kotlin.random.Random
 /**
  * Mock API Client — 백엔드 없이 프론트엔드 개발용.
  * 실제 백엔드 연결 시 Ktor HttpClient 구현으로 교체.
+ *
+ * 다중 시나리오 동시 실행을 흉내내기 위해 시나리오별 상태를 보관한다.
  */
 object ApiClient {
-    private var running = false
-    private var totalSent = 0L
-    private var totalFailed = 0L
-    private var configuredRate = 0
+    private data class MockState(
+        var running: Boolean = false,
+        var totalSent: Long = 0,
+        var totalFailed: Long = 0,
+        var configuredRate: Int = 0,
+    )
+
+    private val states: MutableMap<Long, MockState> = mutableMapOf()
     private var nextId = 4L
 
     private val scenarios = mutableListOf(
@@ -22,40 +28,66 @@ object ApiClient {
 
     // ── Generator ──────────────────────────────────────────────────────
 
-    suspend fun getGeneratorStatus(): Result<GeneratorStatusResponse> {
+    suspend fun getGeneratorStatuses(): Result<List<GeneratorStatusResponse>> {
         delay(80)
-        if (running) {
-            totalSent += Random.nextLong(configuredRate.toLong(), configuredRate * 2L)
-            if (Random.nextFloat() < 0.05f) totalFailed += Random.nextLong(1, 5)
+        // 폴링마다 실행 중인 시나리오의 카운터를 흉내내어 증가시킴
+        states.values.forEach { state ->
+            if (state.running && state.configuredRate > 0) {
+                state.totalSent += Random.nextLong(state.configuredRate.toLong(), state.configuredRate * 2L)
+                if (Random.nextFloat() < 0.05f) state.totalFailed += Random.nextLong(1, 5)
+            }
         }
-        return Result.success(
+        val list = states.entries.map { (id, s) ->
             GeneratorStatusResponse(
-                running = running,
-                totalSent = totalSent,
-                totalFailed = totalFailed,
-                configuredRate = configuredRate,
-            ),
-        )
+                scenarioId = id,
+                running = s.running,
+                totalSent = s.totalSent,
+                totalFailed = s.totalFailed,
+                configuredRate = s.configuredRate,
+            )
+        }
+        return Result.success(list)
     }
 
-    suspend fun startGenerator(rate: Int, fraudRatio: Double): Result<Unit> {
+    suspend fun startGenerator(scenarioId: Long): Result<Unit> {
         delay(200)
-        running = true
-        configuredRate = rate
+        val scenario = scenarios.firstOrNull { it.id == scenarioId }
+            ?: return Result.failure(IllegalArgumentException("시나리오를 찾을 수 없습니다: id=$scenarioId"))
+        val state = states.getOrPut(scenarioId) { MockState() }
+        if (state.running) {
+            return Result.failure(IllegalStateException("이미 실행 중입니다: id=$scenarioId"))
+        }
+        state.running = true
+        state.configuredRate = scenario.rate.toInt()
+        state.totalSent = 0
+        state.totalFailed = 0
         return Result.success(Unit)
     }
 
-    suspend fun stopGenerator(): Result<Unit> {
+    suspend fun stopGenerator(scenarioId: Long): Result<Unit> {
         delay(200)
-        running = false
-        configuredRate = 0
+        val state = states[scenarioId] ?: return Result.success(Unit)
+        state.running = false
+        state.configuredRate = 0
         return Result.success(Unit)
     }
 
-    suspend fun burstGenerator(rate: Int, fraudRatio: Double): Result<Unit> {
+    suspend fun stopAllGenerators(): Result<Unit> {
         delay(200)
-        totalSent += rate * 10
-        if (Random.nextFloat() < 0.1f) totalFailed += Random.nextLong(1, 10)
+        states.values.forEach {
+            it.running = false
+            it.configuredRate = 0
+        }
+        return Result.success(Unit)
+    }
+
+    suspend fun burstGenerator(scenarioId: Long): Result<Unit> {
+        delay(200)
+        val scenario = scenarios.firstOrNull { it.id == scenarioId }
+            ?: return Result.failure(IllegalArgumentException("시나리오를 찾을 수 없습니다: id=$scenarioId"))
+        val state = states.getOrPut(scenarioId) { MockState() }
+        state.totalSent += scenario.rate * 10
+        if (Random.nextFloat() < 0.1f) state.totalFailed += Random.nextLong(1, 10)
         return Result.success(Unit)
     }
 
@@ -84,6 +116,7 @@ object ApiClient {
     suspend fun deleteScenario(id: Long): Result<Unit> {
         delay(150)
         scenarios.removeAll { it.id == id }
+        states.remove(id)
         return Result.success(Unit)
     }
 }

@@ -4,15 +4,19 @@ import com.gijun.logdetect.generator.domain.model.GeneratorStatus
 
 interface GeneratorStateCachePort {
 
-    fun markRunning(rate: Int)
+    fun markRunning(scenarioId: Long, rate: Int)
 
-    fun markStopped()
+    fun markStopped(scenarioId: Long)
 
-    fun incrementSent(): Long
+    fun incrementSent(scenarioId: Long): Long
 
-    fun incrementFailed(): Long
+    fun incrementFailed(scenarioId: Long): Long
 
-    fun resetCounters()
+    fun resetCounters(scenarioId: Long)
 
-    fun getStatus(): GeneratorStatus
+    fun getStatus(scenarioId: Long): GeneratorStatus
+
+    fun getActiveScenarioIds(): Set<Long>
+
+    fun getAllStatuses(): List<GeneratorStatus>
 }

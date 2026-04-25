@@ -948,12 +948,28 @@ fds-generator/
 
 #### API 스펙
 
-| Method | Path | 설명 |
-|--------|------|------|
-| POST | `/api/v1/generator/start?rate=100&fraudRatio=0.05` | 생성 시작 (초당 rate건) |
-| POST | `/api/v1/generator/stop` | 생성 중지 |
-| POST | `/api/v1/generator/burst?count=10000&fraudRatio=0.3` | 스파이크 (count건 일괄) |
-| GET | `/api/v1/generator/status` | 현재 상태 |
+**Scenario CRUD** (`/api/v1/scenarios`)
+
+| Method | Path | Body / 설명 |
+|--------|------|-------------|
+| POST | `/api/v1/scenarios` | `{ name, type:RequestType, attackType, successful, rate, fraudRatio[0~100] }` — 시나리오 생성 |
+| GET | `/api/v1/scenarios` | 전체 목록 |
+| GET | `/api/v1/scenarios/{id}` | 단건 조회 |
+| DELETE | `/api/v1/scenarios/{id}` | 삭제 |
+
+**Generator 실행** (`/api/v1/generator`)
+
+| Method | Path | Body / 설명 |
+|--------|------|-------------|
+| POST | `/api/v1/generator/start` | `{ scenarioId }` — 시나리오 정의대로 무한 실행 (rate=EPS) |
+| POST | `/api/v1/generator/burst` | `{ scenarioId }` — `rate` 만큼 1회 폭주 송신 |
+| DELETE | `/api/v1/generator/stop/{scenarioId}` | 단일 시나리오 정지 |
+| DELETE | `/api/v1/generator/stop-all` | 전체 시나리오 정지 |
+| GET | `/api/v1/generator/status` | `List<{ scenarioId, running, totalSent, totalFailed, configuredRate }>` — 활성/카운터가 남은 모든 시나리오 |
+
+**시나리오 동시 실행**: 서로 다른 `scenarioId` 는 동시 가동 가능 (인메모리 `ConcurrentMap<Long, Job>` + Redisson 키 namespace 분리). 같은 `scenarioId` 두 번째 start 호출은 무시됨.
+
+**fraudRatio 단위**: `Scenario.fraudRatio: Long` 은 **0~100 퍼센트 의미** (Handler 가 `/100.0` 으로 Double 변환). DB 컬럼 변경 회피용.
 
 #### 거래 데이터 생성 규칙
 

@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class GeneratorStatusResponse(
+    val scenarioId: Long,
     val running: Boolean = false,
     val totalSent: Long = 0,
     val totalFailed: Long = 0,
@@ -12,8 +13,7 @@ data class GeneratorStatusResponse(
 
 @Serializable
 data class GeneratorStartRequest(
-    val rate: Int,
-    val fraudRatio: Double,
+    val scenarioId: Long,
 )
 
 @Serializable

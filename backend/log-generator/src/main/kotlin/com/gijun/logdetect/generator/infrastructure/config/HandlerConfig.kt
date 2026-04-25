@@ -6,6 +6,8 @@ import com.gijun.logdetect.generator.application.handler.query.GeneratorQueryHan
 import com.gijun.logdetect.generator.application.handler.query.ScenarioQueryHandler
 import com.gijun.logdetect.generator.application.port.out.GeneratorStateCachePort
 import com.gijun.logdetect.generator.application.port.out.IngestSendClientPort
+import com.gijun.logdetect.generator.application.port.out.IngestSendFilePort
+import com.gijun.logdetect.generator.application.port.out.IngestSendMessagePort
 import com.gijun.logdetect.generator.application.port.out.ScenarioPersistencePort
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -15,9 +17,18 @@ class HandlerConfig {
 
     @Bean
     fun generatorCommandHandler(
+        scenarioPersistencePort: ScenarioPersistencePort,
         ingestSendClientPort: IngestSendClientPort,
+        ingestSendMessagePort: IngestSendMessagePort,
+        ingestSendFilePort: IngestSendFilePort,
         generatorStateCachePort: GeneratorStateCachePort,
-    ) = GeneratorCommandHandler(ingestSendClientPort, generatorStateCachePort)
+    ) = GeneratorCommandHandler(
+        scenarioPersistencePort,
+        ingestSendClientPort,
+        ingestSendMessagePort,
+        ingestSendFilePort,
+        generatorStateCachePort,
+    )
 
     @Bean
     fun generatorQueryHandler(
