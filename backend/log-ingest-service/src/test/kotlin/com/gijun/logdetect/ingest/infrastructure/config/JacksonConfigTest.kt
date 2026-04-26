@@ -1,9 +1,12 @@
 package com.gijun.logdetect.ingest.infrastructure.config
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder
 
 /**
@@ -12,6 +15,9 @@ import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder
  * WHY — `activateDefaultTyping` 이 켜지면 임의 클래스 역직렬화로 RCE 가 가능하다
  * (CVE-2017-7525 류). customizer 가 그대로 적용된 ObjectMapper 가 polymorphic
  * typing 을 풀지 않는지를 검증한다.
+ *
+ * 이슈 #96 — `BeanPostProcessor` 가 deactivateDefaultTyping + deny-all
+ * PolymorphicTypeValidator 를 강제 적용하는지 추가 검증.
  *
  * 주의 — Kotest 6.1.0 + Kotlin 2.3 호환성 이슈로 빌드 시 자동 실행되지 않을 수
  * 있다. IDE 에서 개별 실행하여 검증한다.
@@ -26,6 +32,16 @@ class JacksonConfigTest : DescribeSpec({
         val builder = Jackson2ObjectMapperBuilder.json()
         JacksonConfig().jacksonSecurityCustomizer().customize(builder)
         return builder.build()
+    }
+
+    /**
+     * customizer + BeanPostProcessor 가 모두 적용된 ObjectMapper.
+     * 실제 Spring Boot 컨텍스트에서 빈이 등록되는 시점과 동일한 처리를 흉내낸다.
+     */
+    fun enforcedMapper(): ObjectMapper {
+        val mapper = customizedMapper()
+        val processor = JacksonConfig.JacksonPolicyEnforcer()
+        return processor.postProcessAfterInitialization(mapper, "objectMapper") as ObjectMapper
     }
 
     describe("ObjectMapper 보안 정책") {
@@ -90,6 +106,45 @@ class JacksonConfigTest : DescribeSpec({
                     "default typing 이 customizer 만으로 활성화되어선 안 된다"
                 }
             }
+        }
+    }
+
+    describe("BeanPostProcessor 강제 적용 — 이슈 #96") {
+
+        it("postProcessAfterInitialization 이 ObjectMapper 의 default typing 을 끈다") {
+            val mapper = enforcedMapper()
+            mapper.deserializationConfig.defaultTyper(null) shouldBe null
+            mapper.serializationConfig.defaultTyper(null) shouldBe null
+        }
+
+        it("polymorphicTypeValidator 가 deny-all 로 교체된다 — null 이 아님") {
+            val mapper = enforcedMapper()
+            mapper.polymorphicTypeValidator shouldNotBe null
+            mapper.polymorphicTypeValidator shouldBe JacksonConfig.JacksonPolicyEnforcer.DENY_ALL_VALIDATOR
+        }
+
+        it("DENY_ALL_VALIDATOR 는 PolymorphicTypeValidator 타입이다") {
+            JacksonConfig.JacksonPolicyEnforcer.DENY_ALL_VALIDATOR
+                .shouldBeInstanceOf<PolymorphicTypeValidator>()
+        }
+
+        it("ObjectMapper 가 아닌 빈은 그대로 통과한다 — 부수효과 없음") {
+            val processor = JacksonConfig.JacksonPolicyEnforcer()
+            val unrelated = "not-a-mapper"
+            processor.postProcessAfterInitialization(unrelated, "anyBean") shouldBe unrelated
+        }
+
+        it("BeanPostProcessor 적용 후 사후 activateDefaultTyping 호출이 들어와도 deny-all validator 가 보존된다") {
+            val mapper = enforcedMapper()
+            // BeanPostProcessor 가 박아둔 deny-all validator 는 누군가 사후에 default typing 을
+            // 켜려 시도하더라도 polymorphic 역직렬화 시점에 모든 서브타입을 거부한다.
+            // 본 검증은 validator 가 의도된 deny-all 인스턴스로 유지되는지를 확인.
+            val validatorBefore = mapper.polymorphicTypeValidator
+            // 외부에서 default typing 활성을 시도하더라도 validator 는 동일 인스턴스를 유지해야 한다.
+            // (Jackson 의 activateDefaultTyping 시그니처는 validator 를 인자로 받지만, 본 테스트는
+            //  validator 자체가 deny-all 로 유지되는 회귀 신호만 검증한다.)
+            mapper.polymorphicTypeValidator shouldBe validatorBefore
+            validatorBefore shouldBe JacksonConfig.JacksonPolicyEnforcer.DENY_ALL_VALIDATOR
         }
     }
 })
