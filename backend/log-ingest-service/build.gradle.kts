@@ -18,6 +18,9 @@ dependencies {
     // Elasticsearch
     implementation(Dependencies.Spring.ELASTICSEARCH)
 
+    // Caffeine — 인증 실패 로그 IP 별 rate-limit 캐시 (메모리 폭증 방지)
+    implementation(Dependencies.Cache.CAFFEINE)
+
     // Ktor Client
     implementation(Dependencies.Ktor.CLIENT_CORE)
     implementation(Dependencies.Ktor.CLIENT_CIO)

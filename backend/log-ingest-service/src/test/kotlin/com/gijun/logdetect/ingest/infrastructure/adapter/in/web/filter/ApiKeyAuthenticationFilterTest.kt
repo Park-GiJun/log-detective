@@ -219,6 +219,66 @@ class ApiKeyAuthenticationFilterTest : DescribeSpec({
         }
     }
 
+    describe("hot-path 최적화 (#111)") {
+        it("expectedKeyBytes 캐싱 — 동일 인스턴스에서 다회 호출에도 정상 인증") {
+            val filter = ApiKeyAuthenticationFilter(expectedApiKey = EXPECTED_KEY)
+            // expectedKeyBytes 가 init 시 1회만 인코딩되어도 매 요청 인증이 정상 동작해야 한다.
+            repeat(5) {
+                val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
+                    addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, EXPECTED_KEY)
+                }
+                val response = MockHttpServletResponse()
+                val chain = mockk<FilterChain>(relaxed = true)
+                filter.doFilter(request, response, chain)
+                verify(exactly = 1) { chain.doFilter(request, response) }
+                response.status shouldBe HttpStatus.OK.value()
+            }
+        }
+
+        it("Authentication 토큰 싱글턴 — 다회 인증에서 동일 객체 공유") {
+            val filter = ApiKeyAuthenticationFilter(expectedApiKey = EXPECTED_KEY)
+            val captured = mutableListOf<Any?>()
+
+            repeat(3) {
+                val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
+                    addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, EXPECTED_KEY)
+                }
+                val response = MockHttpServletResponse()
+                val chain = mockk<FilterChain>(relaxed = true)
+                every { chain.doFilter(any(), any()) } answers {
+                    captured.add(SecurityContextHolder.getContext().authentication)
+                }
+                filter.doFilter(request, response, chain)
+            }
+
+            // 모든 요청이 같은 토큰 인스턴스를 공유 (=== 비교)해야 한다.
+            captured.size shouldBe 3
+            captured[0].shouldNotBeNull()
+            (captured[0] === captured[1]) shouldBe true
+            (captured[1] === captured[2]) shouldBe true
+        }
+
+        it("IP 별 로그 rate-limit — 동일 IP 1초 내 2번째 호출은 false") {
+            val filter = ApiKeyAuthenticationFilter(expectedApiKey = EXPECTED_KEY)
+            val ip = "10.0.0.1"
+            // 첫 호출 — 윈도우 진입 → true
+            filter.shouldLog(ip) shouldBe true
+            // 즉시 두 번째 호출 — 윈도우 내 → false
+            filter.shouldLog(ip) shouldBe false
+            filter.shouldLog(ip) shouldBe false
+        }
+
+        it("IP 별 로그 rate-limit — 다른 IP 는 독립 윈도우") {
+            val filter = ApiKeyAuthenticationFilter(expectedApiKey = EXPECTED_KEY)
+            filter.shouldLog("10.0.0.1") shouldBe true
+            // 다른 IP 는 자신의 첫 윈도우이므로 true 여야 한다.
+            filter.shouldLog("10.0.0.2") shouldBe true
+            filter.shouldLog("10.0.0.3") shouldBe true
+            // 같은 IP 재호출은 여전히 차단.
+            filter.shouldLog("10.0.0.1") shouldBe false
+        }
+    }
+
     describe("shouldNotFilter — 헬스체크 우회") {
         val filter = ApiKeyAuthenticationFilter(expectedApiKey = EXPECTED_KEY)
 
