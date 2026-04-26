@@ -11,12 +11,12 @@ class LogEventQueryHandler(
 ) : GetLogEventUseCase {
 
     override fun getByEventId(eventId: UUID): LogEventResult {
-        val (event, ingestedAt) = logEventPersistencePort.findByEventId(eventId)
+        val ingested = logEventPersistencePort.findByEventId(eventId)
             ?: throw DomainNotFoundException("LogEvent를 찾을 수 없습니다: $eventId")
-        return LogEventResult.from(event, ingestedAt)
+        return LogEventResult.from(ingested.event, ingested.ingestedAt)
     }
 
     override fun getRecent(limit: Int): List<LogEventResult> =
         logEventPersistencePort.findRecent(limit)
-            .map { (event, ingestedAt) -> LogEventResult.from(event, ingestedAt) }
+            .map { LogEventResult.from(it.event, it.ingestedAt) }
 }

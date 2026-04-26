@@ -26,18 +26,17 @@ open class LogEventCommandHandler(
     @Transactional
     override fun ingest(command: IngestEventCommand): LogEventResult {
         val event = toLogEvent(command)
-        val (saved, ingestedAt) = logEventPersistencePort.save(event)
-        outboxPersistencePort.saveAll(outboxesFor(saved))
-        return LogEventResult.from(saved, ingestedAt)
+        val ingested = logEventPersistencePort.save(event)
+        outboxPersistencePort.saveAll(outboxesFor(ingested.event))
+        return LogEventResult.from(ingested.event, ingested.ingestedAt)
     }
 
     @Transactional
     override fun ingestBatch(command: IngestBatchCommand): List<LogEventResult> {
         val events = command.events.map { toLogEvent(it) }
-        val savedPairs = logEventPersistencePort.saveAll(events)
-        val savedEvents = savedPairs.map { it.first }
-        outboxPersistencePort.saveAll(savedEvents.flatMap { outboxesFor(it) })
-        return savedPairs.map { (event, ingestedAt) -> LogEventResult.from(event, ingestedAt) }
+        val ingestedList = logEventPersistencePort.saveAll(events)
+        outboxPersistencePort.saveAll(ingestedList.flatMap { outboxesFor(it.event) })
+        return ingestedList.map { LogEventResult.from(it.event, it.ingestedAt) }
     }
 
     private fun outboxesFor(event: LogEvent): List<Outbox> {
