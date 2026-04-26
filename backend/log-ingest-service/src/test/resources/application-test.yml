@@ -43,9 +43,13 @@ spring:
 logdetect:
   ingest:
     batch-max-size: 500
-    # 이슈 #86 — ApiKeyAuthenticationFilter 가 부팅 시 require 검증을 한다.
+    # 이슈 #86 / #110 — ApiKeyAuthenticationFilter 가 부팅 시 require 검증을 한다.
     # 통합 테스트 호출부도 동일 키를 X-API-Key 헤더로 전송해야 한다.
-    api-key: test-api-key
+    # 키 길이는 #110 에서 32자 이상 강제 — 테스트 키도 이를 충족시켜야 부팅 OK.
+    api-key: test-api-key-aaaaaaaaaaaaaaaaaaaa
+    failure-limit: 5
+    failure-window-seconds: 300
+    lockout-seconds: 300
   outbox:
     # Testcontainers 환경에서 Kafka 토픽 leader 가 안정화될 시간을 확보.
     # 첫 dispatch 가 LEADER_NOT_AVAILABLE 로 실패하면 status=FAILED 가 되며 #41

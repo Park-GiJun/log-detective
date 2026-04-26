@@ -44,13 +44,28 @@ spring:
         max.in.flight.requests.per.connection: 5
         compression.type: lz4
 
+management:
+  # 이슈 #110 — actuator 노출 endpoint 를 명시 화이트리스트로 제한.
+  # config-server 의 공통 설정과 동일하지만 이 모듈에서도 명시해 회귀 방지.
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
 logdetect:
   ingest:
     batch-max-size: ${INGEST_BATCH_MAX:500}
-    # 이슈 #86 — X-API-Key 헤더 인증용 사전 공유키.
-    # 비어있으면 ApiKeyAuthenticationFilter 가 부팅 시 fail-fast 한다.
-    # log-generator 도 같은 값으로 설정해야 호출이 통과된다.
+    # 이슈 #86 — X-API-Key 헤더 인증용 사전 공유키 (legacy / 단일 키).
+    # 이슈 #110 — `api-keys` 와 함께 사용 가능. 둘 다 비어있으면 부팅 시 fail-fast.
     api-key: ${INGEST_API_KEY:}
+    # 이슈 #110 — Multi-key rotation. comma-separated.
+    #   - "key"          → clientId 자동 부여 (api-client-N)
+    #   - "clientId:key" → 클라이언트 식별 가능 (메트릭 / 로그 라벨)
+    api-keys: ${INGEST_API_KEYS:}
+    # brute-force 방어 — IP 단위 카운터 윈도우 (초) / 락아웃 지속 (초) / 임계.
+    failure-limit: ${INGEST_AUTH_FAILURE_LIMIT:5}
+    failure-window-seconds: ${INGEST_AUTH_FAILURE_WINDOW:300}
+    lockout-seconds: ${INGEST_AUTH_LOCKOUT:300}
   outbox:
     # PII 마스킹 토글 — true 시 outbox.payload 의 ip/userId 가 마스킹되어 저장된다.
     # 다운스트림(ES/Kafka) 도 마스킹된 데이터를 받게 되므로 운영 결정에 따라 활성화.

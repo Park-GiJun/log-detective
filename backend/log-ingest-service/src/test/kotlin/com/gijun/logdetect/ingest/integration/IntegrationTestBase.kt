@@ -29,6 +29,13 @@ abstract class IntegrationTestBase {
 
         private val kafka = KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.7.1"))
 
+        // 이슈 #110 — RateLimitCacheAdapter (Redisson) 가 부팅 시 Redis 에 연결을 시도하므로
+        // 통합 테스트에 Redis 컨테이너 필수.
+        private val redis: GenericContainer<*> =
+            GenericContainer(DockerImageName.parse("redis:7-alpine"))
+                .withExposedPorts(6379)
+                .waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofMinutes(2)))
+
         // ES 9 startup 로그 패턴이 testcontainers ElasticsearchContainer 의 default wait
         // strategy 와 호환되지 않아 GenericContainer + HTTP wait 로 직접 구성한다.
         private val elasticsearch: GenericContainer<*> =
@@ -47,6 +54,7 @@ abstract class IntegrationTestBase {
             postgres.start()
             kafka.start()
             elasticsearch.start()
+            redis.start()
             createKafkaTopics()
         }
 
@@ -72,6 +80,12 @@ abstract class IntegrationTestBase {
 
             registry.add("spring.elasticsearch.uris") {
                 "http://${elasticsearch.host}:${elasticsearch.getMappedPort(9200)}"
+            }
+
+            // Redisson Spring Boot starter 는 redisson.address 또는 spring.redis.* 를 사용.
+            // 본 프로젝트는 redisson.address 패턴이므로 동일 키로 testcontainer 주소를 주입.
+            registry.add("redisson.address") {
+                "redis://${redis.host}:${redis.getMappedPort(6379)}"
             }
         }
     }
