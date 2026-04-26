@@ -97,6 +97,7 @@ object Dependencies {
         const val TESTCONTAINERS_JUNIT = "org.testcontainers:junit-jupiter"
         const val TESTCONTAINERS_POSTGRESQL = "org.testcontainers:postgresql"
         const val TESTCONTAINERS_KAFKA = "org.testcontainers:kafka"
+        const val TESTCONTAINERS_ELASTICSEARCH = "org.testcontainers:elasticsearch"
 
         // Spring Kafka Test
         const val SPRING_KAFKA_TEST = "org.springframework.kafka:spring-kafka-test"

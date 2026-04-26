@@ -5,6 +5,7 @@ import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.engine.mock.respondError
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -20,7 +21,7 @@ private const val TARGET_URL = "http://ingest-test/api/v1/logs"
 
 class IngestSendClientAdapterTest : DescribeSpec({
 
-    fun client(handler: suspend MockEngine.(io.ktor.client.request.HttpRequestData) -> io.ktor.client.engine.HttpResponseData): HttpClient {
+    fun client(handler: MockRequestHandler): HttpClient {
         val engine = MockEngine(handler)
         return HttpClient(engine) {
             install(ContentNegotiation) { jackson() }
