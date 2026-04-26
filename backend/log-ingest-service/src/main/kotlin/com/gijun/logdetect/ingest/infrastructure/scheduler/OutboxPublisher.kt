@@ -1,5 +1,6 @@
 package com.gijun.logdetect.ingest.infrastructure.scheduler
 
+import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.gijun.logdetect.common.domain.model.LogEvent
 import com.gijun.logdetect.ingest.application.port.out.LogEventMessagePort
@@ -40,18 +41,25 @@ class OutboxPublisher(
 
     private fun dispatch(outbox: Outbox): Boolean {
         val id = outbox.id ?: return false
+        // 미지원 채널은 try 진입 전 가드 — 재시도 의미 없음, 즉시 dead 처리.
+        if (outbox.channel !in SUPPORTED_CHANNELS) {
+            outboxPersistencePort.markDead(id, "unsupported channel: ${outbox.channel}")
+            return false
+        }
         return try {
             val event = objectMapper.readValue(outbox.payload, LogEvent::class.java)
             when (outbox.channel) {
                 ChannelType.ES -> logEventSearchPort.index(event)
                 ChannelType.KAFKA -> logEventMessagePort.publishRaw(event)
-                ChannelType.FILE, ChannelType.OTHERS -> {
-                    outboxPersistencePort.markDead(id, "unsupported channel: ${outbox.channel}")
-                    return false
-                }
+                ChannelType.FILE, ChannelType.OTHERS -> Unit // SUPPORTED_CHANNELS 가드로 도달 불가
             }
             outboxPersistencePort.markPublished(id)
             true
+        } catch (e: JsonProcessingException) {
+            // 페이로드 손상은 영구 실패 — 5회 재시도해도 동일 결과이므로 즉시 dead 처리.
+            val errorMsg = ErrorRedactor.redact(e.message ?: "payload corrupted").take(MAX_ERROR_LENGTH)
+            outboxPersistencePort.markDead(id, "payload corrupted: $errorMsg")
+            false
         } catch (e: Exception) {
             handleFailure(outbox, e)
             false
@@ -76,8 +84,11 @@ class OutboxPublisher(
     companion object {
         private const val BATCH_SIZE = 100
         private const val MAX_ATTEMPTS = 5
+        // 백오프: nextAttempt(1..5) → 5s × 2^n. attempts=1 → 10s, =2 → 20s, =3 → 40s, =4 → 80s, =5 → 160s.
+        // MAX_BACKOFF_SHIFT=6 으로 5분(320s) 상한 — 룰별 SLA 참고: doc/design/design.md §13 (R001 5분 윈도우 영향, 이슈 #50).
         private const val BASE_BACKOFF_SEC = 5L
         private const val MAX_BACKOFF_SHIFT = 6
         private const val MAX_ERROR_LENGTH = 1000
+        private val SUPPORTED_CHANNELS = setOf(ChannelType.ES, ChannelType.KAFKA)
     }
 }
