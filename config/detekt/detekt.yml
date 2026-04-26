@@ -34,6 +34,10 @@ naming:
     ignoreAnnotated: ['Composable', 'Test']
   TopLevelPropertyNaming:
     constantPattern: '[A-Z][_A-Z0-9]*'
+  # 패키지명은 all-lowercase 강제 (Kotlin/Java 컨벤션) — issue #51 회귀 방지
+  PackageNaming:
+    active: true
+    packagePattern: '[a-z]+(\.[a-z][a-z0-9]*)*'
 
 exceptions:
   SwallowedException:
