@@ -12,7 +12,7 @@ interface OutboxJpaRepository : JpaRepository<OutboxEntity, Long> {
     @Query(
         value = """
             select * from ingest.outbox_messages
-            where status = 'PENDING' and next_attempt_at <= now()
+            where status in ('PENDING', 'FAILED') and next_attempt_at <= now()
             order by id
             limit :limit
             for update skip locked
