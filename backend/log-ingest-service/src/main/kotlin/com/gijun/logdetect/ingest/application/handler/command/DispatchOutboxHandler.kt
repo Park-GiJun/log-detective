@@ -11,6 +11,8 @@ import com.gijun.logdetect.ingest.domain.Clock
 import com.gijun.logdetect.ingest.domain.enums.ChannelType
 import com.gijun.logdetect.ingest.domain.model.Outbox
 import org.slf4j.LoggerFactory
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executor
 
 /**
  * Outbox 발행 정책 보유자.
@@ -37,6 +39,7 @@ open class DispatchOutboxHandler(
     private val logEventMessagePort: LogEventMessagePort,
     private val clock: Clock,
     private val errorRedactor: ErrorRedactorPort,
+    private val dispatchExecutor: Executor = Runnable::run,
     private val batchSize: Int = DEFAULT_BATCH_SIZE,
     private val maxAttempts: Int = DEFAULT_MAX_ATTEMPTS,
     private val baseBackoffSec: Long = DEFAULT_BASE_BACKOFF_SEC,
@@ -54,26 +57,27 @@ open class DispatchOutboxHandler(
         // 2) 미지원 채널은 즉시 dead — 외부 IO 호출 없이 부 자료구조에 분류.
         val (unsupported, supported) = pending.partition { it.channel !in SUPPORTED_CHANNELS }
 
-        val publishedIds = mutableListOf<Long>()
-        val failures = mutableListOf<FailureUpdate>()
-        val deads = mutableListOf<DeadUpdate>()
-
-        unsupported.forEach { row ->
-            val id = row.id
-            if (id != null) {
-                deads += DeadUpdate(id, "unsupported channel: ${row.channel}")
-            }
+        val unsupportedDeads: List<DeadUpdate> = unsupported.mapNotNull { row ->
+            row.id?.let { DeadUpdate(it, "unsupported channel: ${row.channel}") }
         }
 
-        // 3) 채널별 그룹화 후 일괄 발행 (#40). 같은 채널끼리 한 번에 묶어 ES `_bulk` / Kafka batch.
+        // 3) 채널별 그룹화 후 일괄 발행 (이슈 #40). 두 채널은 서로 독립이므로 병렬 호출 (이슈 #93).
         val byChannel: Map<ChannelType, List<Outbox>> = supported.groupBy { it.channel }
+        val esRows = byChannel[ChannelType.ES] ?: emptyList()
+        val kafkaRows = byChannel[ChannelType.KAFKA] ?: emptyList()
 
-        byChannel[ChannelType.ES]?.let { rows ->
-            dispatchEs(rows, publishedIds, failures, deads)
-        }
-        byChannel[ChannelType.KAFKA]?.let { rows ->
-            dispatchKafka(rows, publishedIds, failures, deads)
-        }
+        val esFuture: CompletableFuture<ChannelOutcome> =
+            CompletableFuture.supplyAsync({ dispatchEs(esRows) }, dispatchExecutor)
+        val kafkaFuture: CompletableFuture<ChannelOutcome> =
+            CompletableFuture.supplyAsync({ dispatchKafka(kafkaRows) }, dispatchExecutor)
+
+        // 두 future 의 join — 어느 한 쪽이 늦어도 다른 쪽이 먼저 끝나 있다.
+        val esOutcome = esFuture.join()
+        val kafkaOutcome = kafkaFuture.join()
+
+        val publishedIds = esOutcome.publishedIds + kafkaOutcome.publishedIds
+        val failures = esOutcome.failures + kafkaOutcome.failures
+        val deads = unsupportedDeads + esOutcome.deads + kafkaOutcome.deads
 
         // 4) 짧은 트랜잭션 — 결과 일괄 반영.
         if (publishedIds.isNotEmpty()) outboxPersistencePort.markPublishedAll(publishedIds)
@@ -96,12 +100,8 @@ open class DispatchOutboxHandler(
         return summary
     }
 
-    private fun dispatchEs(
-        rows: List<Outbox>,
-        publishedIds: MutableList<Long>,
-        failures: MutableList<FailureUpdate>,
-        deads: MutableList<DeadUpdate>,
-    ) {
+    private fun dispatchEs(rows: List<Outbox>): ChannelOutcome {
+        if (rows.isEmpty()) return ChannelOutcome.EMPTY
         // ES bulk 호출은 한 번. eventId(=aggregateId) 를 ES doc id 로 사용해 멱등성 확보.
         val docs = rows.mapNotNull { row ->
             row.id ?: return@mapNotNull null
@@ -112,13 +112,15 @@ open class DispatchOutboxHandler(
             )
         }
         val byDocId: Map<String, Outbox> = rows.associateBy { it.aggregateId }
+        val publishedIds = mutableListOf<Long>()
+        val failures = mutableListOf<FailureUpdate>()
+        val deads = mutableListOf<DeadUpdate>()
 
         val result = try {
             logEventSearchPort.indexBulk(docs)
         } catch (e: Exception) {
-            // 전체 실패 — 모든 행 markFailed/Dead 분류.
             classifyAllAsFailed(rows, e.message ?: e.javaClass.simpleName, failures, deads)
-            return
+            return ChannelOutcome(publishedIds, failures, deads)
         }
 
         result.successIds.forEach { docId ->
@@ -127,14 +129,11 @@ open class DispatchOutboxHandler(
         result.failures.forEach { (docId, err) ->
             byDocId[docId]?.let { row -> classifyFailure(row, err, failures, deads) }
         }
+        return ChannelOutcome(publishedIds, failures, deads)
     }
 
-    private fun dispatchKafka(
-        rows: List<Outbox>,
-        publishedIds: MutableList<Long>,
-        failures: MutableList<FailureUpdate>,
-        deads: MutableList<DeadUpdate>,
-    ) {
+    private fun dispatchKafka(rows: List<Outbox>): ChannelOutcome {
+        if (rows.isEmpty()) return ChannelOutcome.EMPTY
         val messages = rows.mapNotNull { row ->
             row.id ?: return@mapNotNull null
             LogEventMessagePort.KafkaMessage(
@@ -144,12 +143,15 @@ open class DispatchOutboxHandler(
             )
         }
         val byKey: Map<String, Outbox> = rows.associateBy { it.aggregateId }
+        val publishedIds = mutableListOf<Long>()
+        val failures = mutableListOf<FailureUpdate>()
+        val deads = mutableListOf<DeadUpdate>()
 
         val result = try {
             logEventMessagePort.publishBulk(messages)
         } catch (e: Exception) {
             classifyAllAsFailed(rows, e.message ?: e.javaClass.simpleName, failures, deads)
-            return
+            return ChannelOutcome(publishedIds, failures, deads)
         }
 
         result.successKeys.forEach { key ->
@@ -158,6 +160,7 @@ open class DispatchOutboxHandler(
         result.failures.forEach { (key, err) ->
             byKey[key]?.let { row -> classifyFailure(row, err, failures, deads) }
         }
+        return ChannelOutcome(publishedIds, failures, deads)
     }
 
     private fun classifyAllAsFailed(
@@ -188,6 +191,20 @@ open class DispatchOutboxHandler(
         }
         val backoffSec = baseBackoffSec shl nextAttempts.coerceAtMost(maxBackoffShift)
         failures += FailureUpdate(id, error, clock.now().plusSeconds(backoffSec))
+    }
+
+    /**
+     * 채널별 dispatch 결과 — 병렬 실행 후 main 스레드에서 합치기 위한 immutable carrier.
+     * 호출자별 분리된 mutable list 를 사용하므로 thread-safe.
+     */
+    private data class ChannelOutcome(
+        val publishedIds: List<Long>,
+        val failures: List<FailureUpdate>,
+        val deads: List<DeadUpdate>,
+    ) {
+        companion object {
+            val EMPTY = ChannelOutcome(emptyList(), emptyList(), emptyList())
+        }
     }
 
     /**

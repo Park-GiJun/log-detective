@@ -46,6 +46,14 @@ interface OutboxJpaRepository : JpaRepository<OutboxEntity, Long> {
     )
     fun markPublishedAll(@Param("ids") ids: List<Long>, @Param("publishedAt") publishedAt: Instant): Int
 
+    /**
+     * 같은 (error, nextAttemptAt) 그룹을 한 번의 UPDATE 로 FAILED 처리한다.
+     *
+     * WHY — 행마다 error/nextAttemptAt 가 달라 단순 IN-list 가 어렵지만,
+     * 동일 외부 IO 실패 (예: ES bulk 전체 예외) 는 같은 error 메시지 + 같은 backoff 를 공유하는 경우가 압도적이다.
+     * 호출자에서 (error, nextAttemptAt) 로 그룹화 후 그룹별 IN-list UPDATE 1회만 발생.
+     * 이슈 #89 — row-by-row UPDATE N회 → 그룹 수만큼 (대개 1~3회).
+     */
     @Modifying
     @Query(
         """
@@ -54,15 +62,18 @@ interface OutboxJpaRepository : JpaRepository<OutboxEntity, Long> {
                 o.attempts = o.attempts + 1,
                 o.lastError = :error,
                 o.nextAttemptAt = :nextAttemptAt
-            where o.id = :id
+            where o.id in :ids
         """,
     )
-    fun markFailed(
-        @Param("id") id: Long,
+    fun markFailedBatch(
+        @Param("ids") ids: List<Long>,
         @Param("error") error: String,
         @Param("nextAttemptAt") nextAttemptAt: Instant,
     ): Int
 
+    /**
+     * 같은 error 그룹을 한 번의 UPDATE 로 DEAD 처리한다 (이슈 #89).
+     */
     @Modifying
     @Query(
         """
@@ -70,10 +81,10 @@ interface OutboxJpaRepository : JpaRepository<OutboxEntity, Long> {
             set o.status = com.gijun.logdetect.ingest.domain.enums.OutboxStatus.DEAD,
                 o.attempts = o.attempts + 1,
                 o.lastError = :error
-            where o.id = :id
+            where o.id in :ids
         """,
     )
-    fun markDead(@Param("id") id: Long, @Param("error") error: String): Int
+    fun markDeadBatch(@Param("ids") ids: List<Long>, @Param("error") error: String): Int
 
     /**
      * PUBLISHED 행 retention purge — `published_at < threshold` 기준.

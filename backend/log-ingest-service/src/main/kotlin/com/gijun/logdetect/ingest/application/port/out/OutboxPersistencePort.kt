@@ -22,8 +22,8 @@ interface OutboxPersistencePort {
     fun markPublishedAll(ids: List<Long>)
 
     /**
-     * 배치 단위 markFailed — 실패 행마다 next_attempt_at / error 가 다르므로 row-by-row UPDATE.
-     * 다만 호출자가 외부 IO 밖에서 모아 한 트랜잭션으로 밀어 넣을 수 있도록 batch 형태로 노출.
+     * 배치 단위 markFailed — 어댑터에서 (error, nextAttemptAt) 동일 그룹별로 IN-list UPDATE 한 번씩 묶어 처리한다 (이슈 #89).
+     * 같은 dispatch 사이클에서 발생한 동일 외부 IO 실패는 거의 같은 그룹으로 묶여 RTT 1~3 회로 떨어진다.
      */
     fun markFailedAll(failures: List<FailureUpdate>)
 
