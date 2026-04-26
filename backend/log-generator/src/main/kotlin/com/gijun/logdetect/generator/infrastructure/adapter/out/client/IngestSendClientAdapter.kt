@@ -4,6 +4,7 @@ import com.gijun.logdetect.generator.application.port.out.IngestSendClientPort
 import com.gijun.logdetect.generator.domain.model.LogEvent
 import com.gijun.logdetect.generator.infrastructure.adapter.out.client.dto.IngestSendRequest
 import io.ktor.client.HttpClient
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -20,6 +21,9 @@ class IngestSendClientAdapter(
     @Value("\${generator.ssrf.allow-private-network:false}") private val allowPrivateNetwork: Boolean,
     @Value("#{'\${generator.ssrf.allowed-hosts:}'.split(',')}") private val allowedHosts: List<String>,
     @Value("\${generator.ssrf.per-request-validation:true}") private val perRequestValidation: Boolean,
+    // 이슈 #86 — log-ingest-service 가 X-API-Key 헤더로 인증을 요구한다.
+    // 양쪽 모듈이 같은 INGEST_API_KEY 환경변수를 읽도록 해 키 동기화 누락을 줄인다.
+    @Value("\${generator.ingest.api-key:}") private val apiKey: String,
 ) : IngestSendClientPort {
     private val logger = LoggerFactory.getLogger(this.javaClass)
 
@@ -34,6 +38,11 @@ class IngestSendClientAdapter(
             allowedHosts = sanitizedAllowedHosts,
             allowPrivateNetwork = allowPrivateNetwork,
         )
+        // API Key 미설정은 운영 환경에서 100% 401 을 의미. 부팅 단계 경고로 조기 인지시킨다.
+        // (require 까지는 안 거는 이유 — 로컬 mock 서버 / 일부 통합 테스트가 키 없이 200 을 반환할 수 있어서.)
+        if (apiKey.isBlank()) {
+            logger.warn("generator.ingest.api-key 가 비어있음 — log-ingest-service 호출이 401 로 실패한다. INGEST_API_KEY 환경변수를 설정하라.")
+        }
     }
 
     override suspend fun send(log: LogEvent): Boolean {
@@ -56,6 +65,10 @@ class IngestSendClientAdapter(
         return try {
             val response = httpClient.post(targetUrl) {
                 contentType(ContentType.Application.Json)
+                // 이슈 #86 — log-ingest-service 의 ApiKeyAuthenticationFilter 가 요구하는 헤더.
+                if (apiKey.isNotBlank()) {
+                    header(API_KEY_HEADER, apiKey)
+                }
                 setBody(IngestSendRequest.from(log))
             }
             response.status.isSuccess()
@@ -63,5 +76,9 @@ class IngestSendClientAdapter(
             logger.error("Ingest 전송 실패 — transactionId: {}", log.transactionId, e)
             false
         }
+    }
+
+    companion object {
+        const val API_KEY_HEADER = "X-API-Key"
     }
 }

@@ -18,6 +18,12 @@ logdetect:
     attack-ratio: ${GENERATOR_ATTACK_RATIO:0.05}
 
 generator:
+  # 이슈 #86 — log-ingest-service 의 X-API-Key 인증 헤더 값.
+  # log-ingest-service 의 logdetect.ingest.api-key 와 동일한 INGEST_API_KEY 를 사용해
+  # 양쪽 모듈의 키 동기화 누락을 막는다.
+  ingest:
+    api-key: ${INGEST_API_KEY:}
+
   # SSRF 가드 — targetUrl 이 외부 환경변수로 주입될 때 사설망/메타데이터 엔드포인트 차단.
   ssrf:
     # 운영에서는 false 로 두고, 동일 사설망 ingest 대상은 allowed-hosts 화이트리스트에 등록 권장.

@@ -4,6 +4,7 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.gijun.logdetect.ingest.application.port.out.OutboxPersistencePort
 import com.gijun.logdetect.ingest.domain.enums.OutboxStatus
+import com.gijun.logdetect.ingest.infrastructure.adapter.`in`.web.filter.ApiKeyAuthenticationFilter
 import com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.outbox.repository.OutboxJpaRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.awaitility.Awaitility.await
@@ -42,6 +43,11 @@ class LogIngestE2EIntegrationTest : IntegrationTestBase() {
 
     private val rest = RestTemplate()
 
+    companion object {
+        // application-test.yml 의 logdetect.ingest.api-key 와 동일해야 한다.
+        private const val TEST_API_KEY = "test-api-key"
+    }
+
     @BeforeEach
     fun cleanupOutbox() {
         outboxRepository.deleteAll()
@@ -68,7 +74,11 @@ class LogIngestE2EIntegrationTest : IntegrationTestBase() {
             }
         """.trimIndent()
 
-        val headers = HttpHeaders().apply { contentType = MediaType.APPLICATION_JSON }
+        val headers = HttpHeaders().apply {
+            contentType = MediaType.APPLICATION_JSON
+            // 이슈 #86 — ApiKeyAuthenticationFilter 가 요구하는 헤더. application-test.yml 의 키와 일치.
+            set(ApiKeyAuthenticationFilter.HEADER_NAME, TEST_API_KEY)
+        }
         val response = rest.postForEntity(
             "http://localhost:$port/api/v1/logs",
             HttpEntity(body, headers),
