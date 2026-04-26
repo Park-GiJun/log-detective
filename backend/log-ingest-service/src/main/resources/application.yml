@@ -11,6 +11,19 @@ spring:
       username: ${CONFIG_USERNAME:config}
       password: ${CONFIG_PASSWORD}
 
+  # 이슈 #92 — Hikari pool 명시.
+  # Spring Boot default(maximum-pool-size=10) 으로는 outbox dispatch scheduler 동시성 +
+  # ingest API 병행 + retention/cleanup 잡이 겹칠 때 connection 부족.
+  # 값은 운영 측정(p99 latency, pool wait 메트릭) 기반으로 환경별 조정한다.
+  datasource:
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:30}
+      minimum-idle: ${DB_POOL_MIN_IDLE:10}
+      connection-timeout: ${DB_POOL_CONNECTION_TIMEOUT:5000}        # 5s — getConnection 대기 한계
+      leak-detection-threshold: ${DB_POOL_LEAK_THRESHOLD:30000}     # 30s — 트랜잭션 누수 조기 탐지
+      max-lifetime: ${DB_POOL_MAX_LIFETIME:1800000}                 # 30min — DB / LB 타임아웃보다 짧게
+      idle-timeout: ${DB_POOL_IDLE_TIMEOUT:600000}                  # 10min
+
   jpa:
     properties:
       hibernate:
@@ -19,6 +32,17 @@ spring:
     schemas: ingest
     default-schema: ingest
     table: flyway_schema_history
+
+  # 이슈 #91 — default KafkaTemplate(JsonSerializer 기반) 에도 idempotence / max.in.flight / compression 적용.
+  # outboxKafkaTemplate(ByteArray) 측은 KafkaProducerConfig 에서 동일 옵션 적용.
+  kafka:
+    producer:
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        compression.type: lz4
 
 logdetect:
   ingest:
