@@ -2,6 +2,7 @@ package com.gijun.logdetect.ingest.infrastructure.adapter.`in`.web.filter
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -110,6 +111,83 @@ class ApiKeyAuthenticationFilterTest : DescribeSpec({
 
             response.status shouldBe HttpStatus.UNAUTHORIZED.value()
             verify(exactly = 0) { chain.doFilter(any(), any()) }
+        }
+
+        // 이슈 #108 — whitespace-only 헤더가 isNullOrBlank() 분기로 401 처리되는지 확인.
+        // 회귀 시나리오: trim 누락으로 빈 키와 공백 키가 다르게 취급되면 인증 우회 위험.
+        it("헤더 값이 단일 공백 문자면 401") {
+            val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
+                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, " ")
+            }
+            val response = MockHttpServletResponse()
+            val chain = mockk<FilterChain>(relaxed = true)
+
+            filter.doFilter(request, response, chain)
+
+            response.status shouldBe HttpStatus.UNAUTHORIZED.value()
+            verify(exactly = 0) { chain.doFilter(any(), any()) }
+        }
+
+        it("헤더 값이 탭 문자뿐이면 401") {
+            val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
+                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, "\t")
+            }
+            val response = MockHttpServletResponse()
+            val chain = mockk<FilterChain>(relaxed = true)
+
+            filter.doFilter(request, response, chain)
+
+            response.status shouldBe HttpStatus.UNAUTHORIZED.value()
+            verify(exactly = 0) { chain.doFilter(any(), any()) }
+        }
+
+        // 이슈 #108 — Servlet `getHeader` 는 동일 이름 헤더가 여럿이면 첫 값을 반환한다.
+        // 첫 값이 정상 키면 통과, 첫 값이 잘못된 키면 두 번째에 정답이 있어도 401.
+        it("동일 헤더 다중 값 — 첫 값이 정상 키면 통과 (Servlet getHeader 의 first-value 동작)") {
+            val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
+                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, EXPECTED_KEY)
+                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, "second-wrong")
+            }
+            val response = MockHttpServletResponse()
+            val chain = mockk<FilterChain>(relaxed = true)
+
+            filter.doFilter(request, response, chain)
+
+            response.status shouldBe HttpStatus.OK.value()
+            verify(exactly = 1) { chain.doFilter(request, response) }
+        }
+
+        it("동일 헤더 다중 값 — 첫 값이 잘못된 키면 401 (두 번째에 정답이 있어도)") {
+            val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
+                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, "first-wrong")
+                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, EXPECTED_KEY)
+            }
+            val response = MockHttpServletResponse()
+            val chain = mockk<FilterChain>(relaxed = true)
+
+            filter.doFilter(request, response, chain)
+
+            response.status shouldBe HttpStatus.UNAUTHORIZED.value()
+            verify(exactly = 0) { chain.doFilter(any(), any()) }
+        }
+
+        // 이슈 #108 — 정상 인증 케이스의 authorities 검증. ROLE_INGEST 가 누락되면
+        // SecurityFilterChain 의 hasAuthority 룰이 통과해도 권한 분기 회귀에 무방비.
+        it("정상 인증 케이스에서 SecurityContext authentication.authorities 가 ROLE_INGEST 를 포함한다") {
+            val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
+                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, EXPECTED_KEY)
+            }
+            val response = MockHttpServletResponse()
+            val chain = mockk<FilterChain>(relaxed = true)
+            var capturedAuthorities: List<String> = emptyList()
+            every { chain.doFilter(any(), any()) } answers {
+                capturedAuthorities = SecurityContextHolder.getContext().authentication
+                    ?.authorities.orEmpty().map { it.authority }
+            }
+
+            filter.doFilter(request, response, chain)
+
+            capturedAuthorities shouldContain ApiKeyAuthenticationFilter.ROLE_INGEST
         }
     }
 
