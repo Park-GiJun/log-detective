@@ -1,14 +1,28 @@
 package com.gijun.logdetect.ingest.infrastructure.adapter.out.search
 
-import com.gijun.logdetect.common.domain.model.LogEvent
-import com.gijun.logdetect.ingest.application.port.out.LogEventSearchPort
 import co.elastic.clients.elasticsearch.ElasticsearchClient
-import co.elastic.clients.elasticsearch.core.BulkRequest
+import com.gijun.logdetect.ingest.application.port.out.LogEventSearchPort
+import com.gijun.logdetect.ingest.application.port.out.LogEventSearchPort.BulkResult
+import com.gijun.logdetect.ingest.application.port.out.LogEventSearchPort.SearchDocument
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
+import java.io.ByteArrayInputStream
 
+/**
+ * ES bulk 발행 어댑터.
+ *
+ * WHY — Outbox payload 가 이미 직렬화된 JSON bytes 이므로, ES Java client 의
+ * `BulkRequest.withJson(InputStream)` 에 NDJSON body 를 직접 흘려보낸다.
+ * Outbox payload 를 LogEvent 로 deserialize 한 뒤 다시 serialize 하는 라운드 트립을 제거한다 (이슈 #54).
+ *
+ * 인덱스명 결정 (`logs-yyyy.MM.dd`) 은 [SearchIndexResolver] 가 책임진다.
+ *
+ * NDJSON format (한 메타 라인 + 한 source 라인 반복):
+ * ```
+ * {"index":{"_index":"logs-2026.04.26","_id":"<eventId>"}}
+ * {<원본 LogEvent JSON>}
+ * ```
+ */
 @Component
 class LogEventSearchAdapter(
     private val elasticsearchClient: ElasticsearchClient,
@@ -16,59 +30,56 @@ class LogEventSearchAdapter(
 
     private val logger = LoggerFactory.getLogger(this.javaClass)
 
-    override fun index(event: LogEvent) {
-        val indexName = resolveIndexName(event)
-        elasticsearchClient.index { builder ->
-            builder
-                .index(indexName)
-                .id(event.eventId.toString())
-                .document(toDocument(event))
+    override fun indexBulk(documents: List<SearchDocument>): BulkResult {
+        if (documents.isEmpty()) {
+            return BulkResult(successIds = emptySet(), failures = emptyMap())
         }
-        logger.debug("ES 인덱싱 — index: {}, eventId: {}", indexName, event.eventId)
-    }
 
-    override fun indexBatch(events: List<LogEvent>) {
-        if (events.isEmpty()) return
+        // NDJSON body 작성 — 메타 + payload 를 줄바꿈으로 이어 붙인다.
+        val body = buildBulkBody(documents)
 
-        val bulkRequest = BulkRequest.Builder()
-        events.forEach { event ->
-            bulkRequest.operations { op ->
-                op.index { idx ->
-                    idx
-                        .index(resolveIndexName(event))
-                        .id(event.eventId.toString())
-                        .document(toDocument(event))
+        val response = elasticsearchClient.bulk { bulk ->
+            bulk.withJson(ByteArrayInputStream(body))
+        }
+
+        // 부분 실패 처리 — items 순서가 요청 순서와 동일.
+        val failures = mutableMapOf<String, String>()
+        if (response.errors()) {
+            response.items().forEachIndexed { i, item ->
+                val err = item.error()
+                if (err != null) {
+                    val id = documents[i].id
+                    failures[id] = err.reason() ?: err.type() ?: "unknown ES error"
                 }
             }
-        }
-
-        val response = elasticsearchClient.bulk(bulkRequest.build())
-        if (response.errors()) {
-            logger.warn("ES 벌크 인덱싱 중 오류 발생 — {} 건 중 일부 실패", events.size)
+            logger.warn("ES bulk 부분 실패 — 총 {} 건 중 {} 건 실패", documents.size, failures.size)
         } else {
-            logger.debug("ES 벌크 인덱싱 완료 — {} 건", events.size)
+            logger.debug("ES bulk 인덱싱 완료 — {} 건", documents.size)
         }
+
+        val successIds = documents.asSequence()
+            .map { it.id }
+            .filter { it !in failures }
+            .toSet()
+        return BulkResult(successIds = successIds, failures = failures)
     }
 
-    private fun resolveIndexName(event: LogEvent): String {
-        val date = event.timestamp.atOffset(ZoneOffset.UTC).format(DATE_FORMAT)
-        return "$INDEX_PREFIX$date"
+    private fun buildBulkBody(documents: List<SearchDocument>): ByteArray {
+        // pre-size 추정 — 메타 + payload + 줄바꿈. 약간 넉넉하게 잡아 grow 비용 감소.
+        val estimated = documents.sumOf { 128 + it.payload.size }
+        val out = java.io.ByteArrayOutputStream(estimated)
+        documents.forEach { doc ->
+            // 메타 라인. _index / _id 는 ASCII 안전 가정 (UUID + logs-yyyy.MM.dd) — JSON escape 불필요.
+            val meta = """{"index":{"_index":"${doc.index}","_id":"${doc.id}"}}"""
+            out.write(meta.toByteArray(Charsets.UTF_8))
+            out.write(NEWLINE)
+            out.write(doc.payload)
+            out.write(NEWLINE)
+        }
+        return out.toByteArray()
     }
-
-    private fun toDocument(event: LogEvent): Map<String, Any?> = mapOf(
-        "eventId" to event.eventId.toString(),
-        "source" to event.source,
-        "level" to event.level.name,
-        "message" to event.message,
-        "timestamp" to event.timestamp.toString(),
-        "host" to event.host,
-        "ip" to event.ip,
-        "userId" to event.userId,
-        "attributes" to event.attributes,
-    )
 
     companion object {
-        private const val INDEX_PREFIX = "logs-"
-        private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd")
+        private val NEWLINE = "\n".toByteArray(Charsets.UTF_8)
     }
 }

@@ -79,7 +79,7 @@ class OutboxEntity(
             status = outbox.status,
             attempts = outbox.attempts,
             nextAttemptAt = outbox.nextAttemptAt,
-            createdAt = outbox.createdAt ?: Instant.now(),
+            createdAt = outbox.createdAt,
             publishedAt = outbox.publishedAt,
             lastError = outbox.lastError,
         )

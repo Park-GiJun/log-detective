@@ -38,6 +38,9 @@ class LogIngestE2EIntegrationTest : IntegrationTestBase() {
     @Autowired
     private lateinit var objectMapper: ObjectMapper
 
+    @Autowired
+    private lateinit var clock: com.gijun.logdetect.ingest.domain.Clock
+
     private val rest = RestTemplate()
 
     @BeforeEach
@@ -122,6 +125,7 @@ class LogIngestE2EIntegrationTest : IntegrationTestBase() {
         outboxPersistencePort.saveAll(
             listOf(
                 com.gijun.logdetect.ingest.domain.model.Outbox.newPending(
+                    clock = clock,
                     aggregateId = event.eventId.toString(),
                     channel = com.gijun.logdetect.ingest.domain.enums.ChannelType.FILE,
                     destination = "/tmp/file",
