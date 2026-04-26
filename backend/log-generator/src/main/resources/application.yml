@@ -16,3 +16,12 @@ logdetect:
     target-url: ${GENERATOR_TARGET:http://localhost:8084/api/logs}
     events-per-second: ${GENERATOR_EPS:50}
     attack-ratio: ${GENERATOR_ATTACK_RATIO:0.05}
+
+generator:
+  # SSRF 가드 — targetUrl 이 외부 환경변수로 주입될 때 사설망/메타데이터 엔드포인트 차단.
+  ssrf:
+    # 운영에서는 false 로 두고, 동일 사설망 ingest 대상은 allowed-hosts 화이트리스트에 등록 권장.
+    # 로컬/도커 개발 환경(localhost, 사설 IP 대상)에서는 true 로 토글.
+    allow-private-network: ${GENERATOR_SSRF_ALLOW_PRIVATE:true}
+    # 콤마 분리 hostname 화이트리스트 (allow-private-network=false 일 때 우회 통로).
+    allowed-hosts: ${GENERATOR_SSRF_ALLOWED_HOSTS:}
