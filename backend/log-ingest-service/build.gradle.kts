@@ -18,8 +18,11 @@ dependencies {
     // Elasticsearch
     implementation(Dependencies.Spring.ELASTICSEARCH)
 
-    // Caffeine — 인증 실패 로그 IP 별 rate-limit 캐시 (메모리 폭증 방지)
+    // Caffeine — 인증 실패 로그 IP 별 rate-limit 캐시 (1초 1회 로그 spam 방지, 메모리 폭증 차단)
     implementation(Dependencies.Cache.CAFFEINE)
+    // Redisson (이슈 #110 — brute-force 보안 lockout 카운터/락아웃 분산 캐시)
+    implementation(Dependencies.Redisson.SPRING_BOOT_STARTER)
+    // Micrometer Prometheus 는 log-spring-boot 공통에서 이미 포함.
 
     // Ktor Client
     implementation(Dependencies.Ktor.CLIENT_CORE)

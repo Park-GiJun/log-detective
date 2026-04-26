@@ -46,7 +46,8 @@ class LogIngestE2EIntegrationTest : IntegrationTestBase() {
 
     companion object {
         // application-test.yml 의 logdetect.ingest.api-key 와 동일해야 한다.
-        private const val TEST_API_KEY = "test-api-key"
+        // 이슈 #110 — 키 최소 32자 강제로 인해 길이 충족 필요.
+        private const val TEST_API_KEY = "test-api-key-aaaaaaaaaaaaaaaaaaaa"
     }
 
     private fun sampleBody(timestamp: java.time.Instant): String = """
@@ -150,7 +151,7 @@ class LogIngestE2EIntegrationTest : IntegrationTestBase() {
         val body = sampleBody(clock.now())
         val headers = HttpHeaders().apply {
             contentType = MediaType.APPLICATION_JSON
-            set(ApiKeyAuthenticationFilter.HEADER_NAME, "wrong-key")
+            set(ApiKeyConstants.HEADER_NAME, "wrong-key")
         }
 
         val ex = org.junit.jupiter.api.assertThrows<HttpClientErrorException> {
