@@ -18,6 +18,7 @@ import java.io.IOException
 import java.time.Instant
 
 private const val TARGET_URL = "http://ingest-test/api/v1/logs"
+private val ALLOWED_HOSTS = listOf("ingest-test")
 
 class IngestSendClientAdapterTest : DescribeSpec({
 
@@ -27,6 +28,14 @@ class IngestSendClientAdapterTest : DescribeSpec({
             install(ContentNegotiation) { jackson() }
         }
     }
+
+    fun newAdapter(httpClient: HttpClient): IngestSendClientAdapter =
+        IngestSendClientAdapter(
+            httpClient = httpClient,
+            targetUrl = TARGET_URL,
+            allowPrivateNetwork = false,
+            allowedHosts = ALLOWED_HOSTS,
+        )
 
     fun sampleEvent() = LogEvent(
         id = 1L,
@@ -50,7 +59,7 @@ class IngestSendClientAdapterTest : DescribeSpec({
                     headers = headersOf("Content-Type" to listOf(ContentType.Application.Json.toString())),
                 )
             }
-            val adapter = IngestSendClientAdapter(httpClient, TARGET_URL)
+            val adapter = newAdapter(httpClient)
             adapter.send(sampleEvent()) shouldBe true
         }
 
@@ -58,7 +67,7 @@ class IngestSendClientAdapterTest : DescribeSpec({
             val httpClient = client {
                 respond(content = "", status = HttpStatusCode.NoContent)
             }
-            val adapter = IngestSendClientAdapter(httpClient, TARGET_URL)
+            val adapter = newAdapter(httpClient)
             adapter.send(sampleEvent()) shouldBe true
         }
 
@@ -66,7 +75,7 @@ class IngestSendClientAdapterTest : DescribeSpec({
             val httpClient = client {
                 respond(content = """{"error":"bad"}""", status = HttpStatusCode.BadRequest)
             }
-            val adapter = IngestSendClientAdapter(httpClient, TARGET_URL)
+            val adapter = newAdapter(httpClient)
             adapter.send(sampleEvent()) shouldBe false
         }
 
@@ -74,7 +83,7 @@ class IngestSendClientAdapterTest : DescribeSpec({
             val httpClient = client {
                 respondError(HttpStatusCode.InternalServerError)
             }
-            val adapter = IngestSendClientAdapter(httpClient, TARGET_URL)
+            val adapter = newAdapter(httpClient)
             adapter.send(sampleEvent()) shouldBe false
         }
 
@@ -82,7 +91,7 @@ class IngestSendClientAdapterTest : DescribeSpec({
             val httpClient = client {
                 respondError(HttpStatusCode.ServiceUnavailable)
             }
-            val adapter = IngestSendClientAdapter(httpClient, TARGET_URL)
+            val adapter = newAdapter(httpClient)
             adapter.send(sampleEvent()) shouldBe false
         }
     }
@@ -92,7 +101,7 @@ class IngestSendClientAdapterTest : DescribeSpec({
             val httpClient = client {
                 throw IOException("connection refused")
             }
-            val adapter = IngestSendClientAdapter(httpClient, TARGET_URL)
+            val adapter = newAdapter(httpClient)
             adapter.send(sampleEvent()) shouldBe false
         }
 
@@ -100,7 +109,7 @@ class IngestSendClientAdapterTest : DescribeSpec({
             val httpClient = client {
                 throw RuntimeException("unexpected")
             }
-            val adapter = IngestSendClientAdapter(httpClient, TARGET_URL)
+            val adapter = newAdapter(httpClient)
             adapter.send(sampleEvent()) shouldBe false
         }
     }
