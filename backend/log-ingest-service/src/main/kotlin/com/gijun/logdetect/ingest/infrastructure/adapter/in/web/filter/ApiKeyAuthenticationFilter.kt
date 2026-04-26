@@ -1,7 +1,9 @@
 package com.gijun.logdetect.ingest.infrastructure.adapter.`in`.web.filter
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
+import com.gijun.logdetect.common.security.ApiKeyConstants
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -11,7 +13,6 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.Authentication
-import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
@@ -38,6 +39,7 @@ import java.time.Duration
 @Component
 class ApiKeyAuthenticationFilter(
     @Value("\${logdetect.ingest.api-key:}") private val expectedApiKey: String,
+    private val objectMapper: ObjectMapper = ObjectMapper(),
 ) : OncePerRequestFilter() {
     private val logger = LoggerFactory.getLogger(this.javaClass)
 
@@ -64,7 +66,7 @@ class ApiKeyAuthenticationFilter(
     ) {
         // actuator/health, info 등 permitAll 경로는 SecurityFilterChain 단계에서 분기되지만
         // OncePerRequestFilter 는 모든 요청을 통과하므로 shouldNotFilter 로 보조 분기.
-        val provided = request.getHeader(HEADER_NAME)
+        val provided = request.getHeader(ApiKeyConstants.HEADER_NAME)
         if (provided.isNullOrBlank() || !verifyKey(provided)) {
             // 인증 실패 로그는 path / remoteAddr 만 기록 (헤더 값은 누설 위험으로 마스킹 생략 = 미기록).
             // IP 별 1초 1회로 rate-limit — 악성 IP 가 디스크/Loki 채우는 것 방지.
@@ -76,10 +78,7 @@ class ApiKeyAuthenticationFilter(
                     remoteAddr,
                 )
             }
-            response.status = HttpStatus.UNAUTHORIZED.value()
-            response.contentType = MediaType.APPLICATION_JSON_VALUE
-            response.characterEncoding = Charsets.UTF_8.name()
-            response.writer.write(UNAUTHORIZED_BODY)
+            writeUnauthorized(response)
             return
         }
 
@@ -125,10 +124,33 @@ class ApiKeyAuthenticationFilter(
         }
     }
 
+    /**
+     * 401 응답 본문 작성 — [ApiErrorResponse] 를 ObjectMapper 로 직렬화.
+     *
+     * WHY — raw 문자열 리터럴 대신 type-safe DTO + ObjectMapper 로 두면
+     * 필드 추가/변경 시 컴파일러 안전성 + JSON escaping 책임 분리.
+     */
+    private fun writeUnauthorized(response: HttpServletResponse) {
+        response.status = HttpStatus.UNAUTHORIZED.value()
+        response.contentType = MediaType.APPLICATION_JSON_VALUE
+        response.characterEncoding = Charsets.UTF_8.name()
+        response.writer.write(objectMapper.writeValueAsString(UNAUTHORIZED_BODY))
+    }
+
     companion object {
-        const val HEADER_NAME = "X-API-Key"
+        /**
+         * 헤더명은 [ApiKeyConstants.HEADER_NAME] 단일 source 사용.
+         * 본 상수는 기존 테스트/통합 테스트 호환을 위한 alias 로 보존한다.
+         */
+        @Deprecated(
+            message = "Use ApiKeyConstants.HEADER_NAME — log-common 의 단일 source.",
+            replaceWith = ReplaceWith(
+                "ApiKeyConstants.HEADER_NAME",
+                "com.gijun.logdetect.common.security.ApiKeyConstants",
+            ),
+        )
+        const val HEADER_NAME = ApiKeyConstants.HEADER_NAME
         const val CLIENT_PRINCIPAL = "api-client"
-        const val ROLE_INGEST = "ROLE_INGEST"
 
         /**
          * 인증 우회 경로 — Filter / SecurityConfig 가 동일 소스를 참조해 표류 방지.
@@ -145,8 +167,10 @@ class ApiKeyAuthenticationFilter(
          */
         fun isPermitAllPath(path: String): Boolean = PERMIT_ALL_PATHS.any { path.startsWith(it) }
 
-        private const val UNAUTHORIZED_BODY =
-            """{"error":"Unauthorized","message":"Invalid or missing API key"}"""
+        private val UNAUTHORIZED_BODY = ApiErrorResponse(
+            error = "Unauthorized",
+            message = "Invalid or missing API key",
+        )
 
         private const val UNKNOWN_REMOTE = "unknown"
 
@@ -164,11 +188,13 @@ class ApiKeyAuthenticationFilter(
          * 생성자에서만 받는 사실상 immutable 객체이며, isAuthenticated() = true 로 고정된다.
          * SecurityContextHolder 자체가 thread-local 컨텍스트라 토큰 공유는 race 없음.
          * 요청마다 객체/리스트 할당을 제거해 hot-path GC 압력을 낮춘다.
+         *
+         * authorities 는 비워둔다 — 현재 권한 모델(role 분기) 미사용. 도입 시 추가 (M1).
          */
         private val AUTHENTICATED_TOKEN: Authentication = UsernamePasswordAuthenticationToken(
             CLIENT_PRINCIPAL,
             null,
-            listOf(SimpleGrantedAuthority(ROLE_INGEST)),
+            emptyList(),
         )
     }
 }

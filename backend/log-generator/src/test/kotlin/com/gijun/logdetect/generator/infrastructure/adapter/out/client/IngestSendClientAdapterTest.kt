@@ -4,10 +4,13 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import com.gijun.logdetect.common.security.ApiKeyConstants
 import com.gijun.logdetect.generator.domain.model.LogEvent
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
-import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldHaveAtLeastSize
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandler
@@ -38,7 +41,11 @@ class IngestSendClientAdapterTest : DescribeSpec({
         }
     }
 
-    fun newAdapter(httpClient: HttpClient, apiKey: String = TEST_API_KEY): IngestSendClientAdapter =
+    fun newAdapter(
+        httpClient: HttpClient,
+        apiKey: String = TEST_API_KEY,
+        apiKeyRequired: Boolean = false,
+    ): IngestSendClientAdapter =
         IngestSendClientAdapter(
             httpClient = httpClient,
             targetUrl = TARGET_URL,
@@ -47,6 +54,7 @@ class IngestSendClientAdapterTest : DescribeSpec({
             // 화이트리스트(`ingest-test`)에 매치되어 InetAddress 해석을 건너뛰므로 활성화해도 안전.
             perRequestValidation = true,
             apiKey = apiKey,
+            apiKeyRequired = apiKeyRequired,
         )
 
     fun sampleEvent() = LogEvent(
@@ -126,7 +134,7 @@ class IngestSendClientAdapterTest : DescribeSpec({
         }
     }
 
-    // 이슈 #108 — 회귀 방어선: header(API_KEY_HEADER, apiKey) 라인을 통째 삭제해도
+    // 이슈 #108 — 회귀 방어선: header(ApiKeyConstants.HEADER_NAME, apiKey) 라인을 통째 삭제해도
     // 이전 테스트는 PASS 했다. MockEngine 핸들러에서 X-API-Key 를 직접 캡처해 검증한다.
     describe("X-API-Key 헤더 첨부 동작") {
         // MockEngine 핸들러는 호출 시점에 HttpRequestData 를 받는다. AtomicReference 로 캡처해
@@ -148,7 +156,7 @@ class IngestSendClientAdapterTest : DescribeSpec({
             adapter.send(sampleEvent()) shouldBe true
 
             val request = captured.get()!!
-            request.headers[IngestSendClientAdapter.API_KEY_HEADER] shouldBe TEST_API_KEY
+            request.headers[ApiKeyConstants.HEADER_NAME] shouldBe TEST_API_KEY
         }
 
         it("apiKey='another-secret-9k!' 같은 임의 값도 그대로 헤더에 전달된다") {
@@ -158,7 +166,7 @@ class IngestSendClientAdapterTest : DescribeSpec({
 
             adapter.send(sampleEvent()) shouldBe true
 
-            captured.get()!!.headers[IngestSendClientAdapter.API_KEY_HEADER] shouldBe arbitraryKey
+            captured.get()!!.headers[ApiKeyConstants.HEADER_NAME] shouldBe arbitraryKey
         }
 
         it("apiKey='' (blank) 인 경우 X-API-Key 헤더가 첨부되지 않는다 — 빈 환경에서 401 회귀 방어") {
@@ -168,7 +176,7 @@ class IngestSendClientAdapterTest : DescribeSpec({
             adapter.send(sampleEvent()) shouldBe true
 
             // contains 가 아니라 null 단언으로 — 빈 문자열이 잘못 전달되는 회귀(`X-API-Key=""`)도 차단.
-            captured.get()!!.headers[IngestSendClientAdapter.API_KEY_HEADER] shouldBe null
+            captured.get()!!.headers[ApiKeyConstants.HEADER_NAME] shouldBe null
         }
 
         it("apiKey='   ' (공백뿐) 도 isBlank() 분기로 헤더 미첨부") {
@@ -177,45 +185,56 @@ class IngestSendClientAdapterTest : DescribeSpec({
 
             adapter.send(sampleEvent()) shouldBe true
 
-            captured.get()!!.headers[IngestSendClientAdapter.API_KEY_HEADER] shouldBe null
+            captured.get()!!.headers[ApiKeyConstants.HEADER_NAME] shouldBe null
         }
     }
 
-    // 이슈 #108 — apiKey 가 비어있을 때 init 블록의 warn 로그가 실제로 찍히는지 회귀 방어.
-    // logback ListAppender 로 IngestSendClientAdapter 로거에 부착해 캡처한다.
-    describe("apiKey blank 경고 로그") {
-        fun attachAppender(): ListAppender<ILoggingEvent> {
+    // 이슈 #112 L6 / L9 — apiKey 누락 정책 회귀 방어.
+    // - required=false (default): warn 로그 + 정상 부팅 → 로컬/mock 통합 테스트 유지.
+    // - required=true: IllegalArgumentException 으로 fail-fast → 운영 권장.
+    describe("apiKey blank 처리 (이슈 #112 L6 / L9)") {
+        // 부팅 단계 로그 캡처 — Logback ListAppender 를 IngestSendClientAdapter logger 에 attach.
+        fun captureBootLogs(block: () -> Unit): List<ILoggingEvent> {
             val logger = LoggerFactory.getLogger(IngestSendClientAdapter::class.java) as Logger
             val appender = ListAppender<ILoggingEvent>().apply { start() }
             logger.addAppender(appender)
-            return appender
-        }
-
-        fun detach(appender: ListAppender<ILoggingEvent>) {
-            val logger = LoggerFactory.getLogger(IngestSendClientAdapter::class.java) as Logger
-            logger.detachAppender(appender)
-            appender.stop()
-        }
-
-        it("apiKey='' 로 부팅하면 WARN 로그에 INGEST_API_KEY 안내 메시지가 남는다") {
-            val appender = attachAppender()
-            try {
-                newAdapter(client { respond(content = "", status = HttpStatusCode.OK) }, apiKey = "")
-                val warnMessages = appender.list.filter { it.level == Level.WARN }.map { it.formattedMessage }
-                warnMessages.any { it.contains("INGEST_API_KEY") } shouldBe true
+            return try {
+                block()
+                appender.list.toList()
             } finally {
-                detach(appender)
+                logger.detachAppender(appender)
             }
         }
 
+        it("apiKey 가 blank 이고 required=false 면 warn 로그 + 정상 부팅") {
+            val httpClient = client {
+                respond(content = "", status = HttpStatusCode.OK)
+            }
+            val events = captureBootLogs {
+                newAdapter(httpClient, apiKey = "", apiKeyRequired = false)
+            }
+            // warn 1건 이상 + 메시지에 환경변수 명 포함 여부.
+            val warns = events.filter { it.level == Level.WARN }
+            warns.shouldHaveAtLeastSize(1)
+            warns.first().formattedMessage.shouldContain("INGEST_API_KEY")
+        }
+
         it("apiKey 가 정상 값이면 WARN 로그가 남지 않는다") {
-            val appender = attachAppender()
-            try {
-                newAdapter(client { respond(content = "", status = HttpStatusCode.OK) }, apiKey = TEST_API_KEY)
-                appender.list.filter { it.level == Level.WARN }
-                    .map { it.formattedMessage } shouldBe emptyList()
-            } finally {
-                detach(appender)
+            val httpClient = client {
+                respond(content = "", status = HttpStatusCode.OK)
+            }
+            val events = captureBootLogs {
+                newAdapter(httpClient, apiKey = TEST_API_KEY)
+            }
+            events.filter { it.level == Level.WARN } shouldBe emptyList()
+        }
+
+        it("apiKey 가 blank 이고 required=true 면 IllegalArgumentException 으로 fail-fast") {
+            val httpClient = client {
+                respond(content = "", status = HttpStatusCode.OK)
+            }
+            shouldThrow<IllegalArgumentException> {
+                newAdapter(httpClient, apiKey = "", apiKeyRequired = true)
             }
         }
     }
