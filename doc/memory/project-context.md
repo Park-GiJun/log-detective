@@ -1,5 +1,9 @@
 # 프로젝트 컨텍스트 (2026-04-26 기준)
 
+## 테스트 인프라
+- **Kotest 6.0.4 다운그레이드 (#70 → #98)**: Kotest 6.1.0 + Kotlin 2.3.20 환경에서 `KotestJunitPlatformTestEngine.discover` 가 `NoSuchMethodError(SpecRef.Reference)` 로 실패하던 문제를 6.0.4 maintenance 라인으로 해결. 본 PR(#98)에서 단위 테스트가 빌드 시 정상 실행되는 것을 검증 — `*Test.kt` 의 "IDE 검증 위임" KDoc 일괄 제거.
+- 단위 테스트 실행: `./gradlew :log-ingest-service:test` + `./gradlew :log-generator:test`
+
 ## 구현 현황
 - **Phase 0 (스켈레톤)**: 완료
 - **Phase 1 (수집 파이프라인)**: 진행 중

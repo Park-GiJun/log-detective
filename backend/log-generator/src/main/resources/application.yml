@@ -25,3 +25,5 @@ generator:
     allow-private-network: ${GENERATOR_SSRF_ALLOW_PRIVATE:true}
     # 콤마 분리 hostname 화이트리스트 (allow-private-network=false 일 때 우회 통로).
     allowed-hosts: ${GENERATOR_SSRF_ALLOWED_HOSTS:}
+    # 매 send 직전 SSRF 재검증 (DNS rebinding / TOCTOU 방어). 운영 부하가 큰 경우 false 로 토글 가능.
+    per-request-validation: ${GENERATOR_SSRF_PER_REQUEST:true}

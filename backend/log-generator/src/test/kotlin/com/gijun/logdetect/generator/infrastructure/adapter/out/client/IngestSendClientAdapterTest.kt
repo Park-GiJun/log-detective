@@ -35,6 +35,8 @@ class IngestSendClientAdapterTest : DescribeSpec({
             targetUrl = TARGET_URL,
             allowPrivateNetwork = false,
             allowedHosts = ALLOWED_HOSTS,
+            // 화이트리스트(`ingest-test`)에 매치되어 InetAddress 해석을 건너뛰므로 활성화해도 안전.
+            perRequestValidation = true,
         )
 
     fun sampleEvent() = LogEvent(

@@ -1,7 +1,7 @@
 package com.gijun.logdetect.ingest.infrastructure.adapter.`in`.scheduler
 
 import com.gijun.logdetect.ingest.application.port.out.OutboxPersistencePort
-import com.gijun.logdetect.ingest.domain.Clock
+import com.gijun.logdetect.ingest.domain.port.Clock
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource

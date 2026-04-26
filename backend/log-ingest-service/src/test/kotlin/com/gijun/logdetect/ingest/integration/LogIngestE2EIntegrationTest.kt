@@ -17,7 +17,6 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.web.client.RestTemplate
 import java.time.Duration
-import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
@@ -39,7 +38,7 @@ class LogIngestE2EIntegrationTest : IntegrationTestBase() {
     private lateinit var objectMapper: ObjectMapper
 
     @Autowired
-    private lateinit var clock: com.gijun.logdetect.ingest.domain.Clock
+    private lateinit var clock: com.gijun.logdetect.ingest.domain.port.Clock
 
     private val rest = RestTemplate()
 
@@ -48,13 +47,14 @@ class LogIngestE2EIntegrationTest : IntegrationTestBase() {
         outboxRepository.deleteAll()
         // ES 의 자동 인덱스 생성이 첫 호출에서 timeout 으로 실패하지 않도록 미리 생성.
         // (운영에서는 첫 트래픽 들어오기 전 미리 cluster 가 안정화되어 OK 이므로 테스트 환경 보정.)
-        val today = "logs-${Instant.parse("2026-04-26T10:00:00Z").atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("yyyy.MM.dd"))}"
+        // 시각 하드코딩 제거 — clock 빈으로부터 인덱스 날짜를 도출해 테스트 실행일과 어긋나지 않게 한다 (이슈 #99).
+        val today = "logs-${clock.now().atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("yyyy.MM.dd"))}"
         runCatching { elasticsearchClient.indices().create { it.index(today) } }
     }
 
     @Test
     fun `POST api v1 logs - log_events 1행 + outbox 2행이 생성되고 OutboxPublisher 가 ES + Kafka 로 발행하여 PUBLISHED 전이`() {
-        val timestamp = Instant.parse("2026-04-26T10:00:00Z")
+        val timestamp = clock.now()
         val body = """
             {
               "source": "integration-test",
@@ -119,7 +119,7 @@ class LogIngestE2EIntegrationTest : IntegrationTestBase() {
             source = "integration",
             level = com.gijun.logdetect.common.domain.enums.LogLevel.INFO,
             message = "m",
-            timestamp = Instant.parse("2026-04-26T11:00:00Z"),
+            timestamp = clock.now(),
         )
         val payload = objectMapper.writeValueAsString(event)
         outboxPersistencePort.saveAll(

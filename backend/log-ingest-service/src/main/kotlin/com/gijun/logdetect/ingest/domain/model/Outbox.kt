@@ -1,8 +1,8 @@
 package com.gijun.logdetect.ingest.domain.model
 
-import com.gijun.logdetect.ingest.domain.Clock
 import com.gijun.logdetect.ingest.domain.enums.ChannelType
 import com.gijun.logdetect.ingest.domain.enums.OutboxStatus
+import com.gijun.logdetect.ingest.domain.port.Clock
 import java.time.Instant
 
 data class Outbox(

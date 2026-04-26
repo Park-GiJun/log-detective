@@ -18,9 +18,6 @@ import java.time.Instant
  * 검증 대상:
  * - `fetchPending(limit)` 의 외부 입력 클램프 가드 (이슈 #63)
  * - `markFailedAll` / `markDeadAll` 의 (error, nextAttemptAt) 그룹별 IN-list UPDATE (이슈 #89)
- *
- * 주의 — Kotest 6.1.0 + Kotlin 2.3 호환성 이슈로 빌드 시 자동 실행되지 않을 수 있다.
- * IDE 에서 개별 실행하여 검증한다.
  */
 class OutboxPersistenceAdapterTest : DescribeSpec({
 
@@ -28,7 +25,7 @@ class OutboxPersistenceAdapterTest : DescribeSpec({
 
         it("limit 가 1 미만이면 1 로 보정된다 — repository 에 1 이 전달된다") {
             val repo = mockk<OutboxJpaRepository>()
-            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.Clock { java.time.Instant.now() })
+            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.port.Clock { java.time.Instant.now() })
             val captured = slot<Int>()
             every { repo.fetchPendingForUpdate(capture(captured)) } returns emptyList()
 
@@ -41,7 +38,7 @@ class OutboxPersistenceAdapterTest : DescribeSpec({
 
         it("limit 가 MAX_LIMIT(1000) 초과면 1000 으로 잘린다 — DoS 방어") {
             val repo = mockk<OutboxJpaRepository>()
-            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.Clock { java.time.Instant.now() })
+            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.port.Clock { java.time.Instant.now() })
             val captured = slot<Int>()
             every { repo.fetchPendingForUpdate(capture(captured)) } returns emptyList()
 
@@ -54,7 +51,7 @@ class OutboxPersistenceAdapterTest : DescribeSpec({
 
         it("정상 범위(1..1000)는 그대로 통과한다") {
             val repo = mockk<OutboxJpaRepository>()
-            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.Clock { java.time.Instant.now() })
+            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.port.Clock { java.time.Instant.now() })
             val captured = slot<Int>()
             every { repo.fetchPendingForUpdate(capture(captured)) } returns emptyList()
 
@@ -70,7 +67,7 @@ class OutboxPersistenceAdapterTest : DescribeSpec({
 
         it("repository 호출은 정확히 1회씩만 일어난다") {
             val repo = mockk<OutboxJpaRepository>()
-            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.Clock { java.time.Instant.now() })
+            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.port.Clock { java.time.Instant.now() })
             every { repo.fetchPendingForUpdate(any()) } returns emptyList()
 
             adapter.fetchPending(50)
@@ -82,7 +79,7 @@ class OutboxPersistenceAdapterTest : DescribeSpec({
 
         it("동일 (error, nextAttemptAt) 100 건은 markFailedBatch 1회로 묶인다") {
             val repo = mockk<OutboxJpaRepository>()
-            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.Clock { Instant.now() })
+            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.port.Clock { Instant.now() })
             val nextAttemptAt = Instant.parse("2026-04-26T10:00:00Z")
             val failures = (1L..100L).map { FailureUpdate(it, "ES down", nextAttemptAt) }
 
@@ -97,7 +94,7 @@ class OutboxPersistenceAdapterTest : DescribeSpec({
 
         it("error 가 다르면 그룹별로 호출이 나뉜다") {
             val repo = mockk<OutboxJpaRepository>()
-            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.Clock { Instant.now() })
+            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.port.Clock { Instant.now() })
             val t1 = Instant.parse("2026-04-26T10:00:10Z")
             val t2 = Instant.parse("2026-04-26T10:00:20Z")
             val failures = listOf(
@@ -115,7 +112,7 @@ class OutboxPersistenceAdapterTest : DescribeSpec({
 
         it("입력이 비어있으면 repository 를 호출하지 않는다") {
             val repo = mockk<OutboxJpaRepository>()
-            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.Clock { Instant.now() })
+            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.port.Clock { Instant.now() })
 
             adapter.markFailedAll(emptyList())
 
@@ -127,7 +124,7 @@ class OutboxPersistenceAdapterTest : DescribeSpec({
 
         it("동일 error 50 건은 markDeadBatch 1회로 묶인다") {
             val repo = mockk<OutboxJpaRepository>()
-            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.Clock { Instant.now() })
+            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.port.Clock { Instant.now() })
             val deads = (1L..50L).map { DeadUpdate(it, "max attempts exceeded") }
 
             val idsSlot = slot<List<Long>>()
@@ -141,7 +138,7 @@ class OutboxPersistenceAdapterTest : DescribeSpec({
 
         it("error 가 다르면 그룹별로 분리되어 호출된다") {
             val repo = mockk<OutboxJpaRepository>()
-            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.Clock { Instant.now() })
+            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.port.Clock { Instant.now() })
             val deads = listOf(
                 DeadUpdate(1L, "unsupported channel: FILE"),
                 DeadUpdate(2L, "unsupported channel: FILE"),
@@ -157,7 +154,7 @@ class OutboxPersistenceAdapterTest : DescribeSpec({
 
         it("입력이 비어있으면 repository 를 호출하지 않는다") {
             val repo = mockk<OutboxJpaRepository>()
-            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.Clock { Instant.now() })
+            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.port.Clock { Instant.now() })
 
             adapter.markDeadAll(emptyList())
 

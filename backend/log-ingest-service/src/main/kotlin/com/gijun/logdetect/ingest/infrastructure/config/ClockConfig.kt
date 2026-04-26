@@ -1,6 +1,6 @@
 package com.gijun.logdetect.ingest.infrastructure.config
 
-import com.gijun.logdetect.ingest.domain.Clock
+import com.gijun.logdetect.ingest.domain.port.Clock
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock as JavaClock

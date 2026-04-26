@@ -11,9 +11,6 @@ import java.util.UUID
 /**
  * PiiMasker 단위 테스트.
  *
- * 주의 — Kotest 6.1.0 + Kotlin 2.3 호환성 이슈로 빌드 시 자동 실행되지 않을 수 있다.
- * IDE 에서 개별 실행하여 검증한다.
- *
  * 이슈 #88 강화 후 정책:
  * - IPv4 → `A.B.*.*` (`/16`), userId → 길이 보존 `*` (prefix 미노출)
  * - HASH 모드 → HMAC-SHA256(salt) deterministic pseudonym

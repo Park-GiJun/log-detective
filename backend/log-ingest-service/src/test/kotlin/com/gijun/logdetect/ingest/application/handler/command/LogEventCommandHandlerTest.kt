@@ -12,11 +12,11 @@ import com.gijun.logdetect.ingest.application.port.out.LogEventPersistencePort
 import com.gijun.logdetect.ingest.application.port.out.OutboxPayloadSerializerPort
 import com.gijun.logdetect.ingest.application.port.out.OutboxPersistencePort
 import com.gijun.logdetect.ingest.application.port.out.SearchIndexResolverPort
-import com.gijun.logdetect.ingest.domain.Clock
 import com.gijun.logdetect.ingest.domain.enums.ChannelType
 import com.gijun.logdetect.ingest.domain.enums.OutboxStatus
 import com.gijun.logdetect.ingest.domain.model.IngestedLogEvent
 import com.gijun.logdetect.ingest.domain.model.Outbox
+import com.gijun.logdetect.ingest.domain.port.Clock
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
