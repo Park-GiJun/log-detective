@@ -31,6 +31,7 @@ dependencies {
     testImplementation(Dependencies.Test.TESTCONTAINERS_JUNIT)
     testImplementation(Dependencies.Test.TESTCONTAINERS_POSTGRESQL)
     testImplementation(Dependencies.Test.TESTCONTAINERS_KAFKA)
+    testImplementation(Dependencies.Test.TESTCONTAINERS_ELASTICSEARCH)
     testImplementation(Dependencies.Test.SPRING_KAFKA_TEST)
     testImplementation(Dependencies.Test.KTOR_CLIENT_MOCK)
 }

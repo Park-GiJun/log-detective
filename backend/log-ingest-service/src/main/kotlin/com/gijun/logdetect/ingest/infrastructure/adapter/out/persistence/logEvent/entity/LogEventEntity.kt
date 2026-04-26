@@ -10,6 +10,7 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import org.hibernate.annotations.ColumnTransformer
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
 import java.time.Instant
@@ -41,7 +42,8 @@ class LogEventEntity(
     @Column(length = 255)
     val host: String? = null,
 
-    @Column(columnDefinition = "INET")
+    @Column(columnDefinition = "inet")
+    @ColumnTransformer(write = "?::inet")
     val ip: String? = null,
 
     @Column(name = "user_id", length = 128)

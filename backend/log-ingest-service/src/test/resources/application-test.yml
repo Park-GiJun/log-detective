@@ -2,3 +2,49 @@ spring:
   cloud:
     config:
       enabled: false
+  config:
+    import: "optional:configserver:"
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: ingest
+    show-sql: false
+
+  flyway:
+    enabled: true
+    schemas: ingest
+    default-schema: ingest
+    create-schemas: true
+    table: flyway_schema_history
+
+  kafka:
+    consumer:
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.gijun.logdetect.*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      retries: 3
+      properties:
+        delivery.timeout.ms: 30000
+        request.timeout.ms: 10000
+        max.block.ms: 30000
+
+  elasticsearch:
+    connection-timeout: 10s
+    socket-timeout: 30s
+
+logdetect:
+  ingest:
+    batch-max-size: 500
+  outbox:
+    # Testcontainers 환경에서 Kafka 토픽 leader 가 안정화될 시간을 확보.
+    # 첫 dispatch 가 LEADER_NOT_AVAILABLE 로 실패하면 status=FAILED 가 되며 #41
+    # (fetchPending 이 PENDING 만 fetch) 결함 때문에 영구 미재시도가 됨.
+    poll-interval-ms: 5000

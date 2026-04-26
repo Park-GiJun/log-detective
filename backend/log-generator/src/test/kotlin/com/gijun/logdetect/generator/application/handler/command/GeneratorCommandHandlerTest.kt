@@ -65,7 +65,7 @@ class GeneratorCommandHandlerTest : DescribeSpec({
             handler.startGenerator(GeneratorStartCommand(scenarioId = 1L))
             handler.startGenerator(GeneratorStartCommand(scenarioId = 1L))
 
-            handler.isRunning(1L) shouldBeTrue()
+            handler.isRunning(1L).shouldBeTrue()
             handler.stopGenerator(1L)
         }
 
@@ -80,8 +80,8 @@ class GeneratorCommandHandlerTest : DescribeSpec({
             handler.startGenerator(GeneratorStartCommand(scenarioId = 1L))
             handler.startGenerator(GeneratorStartCommand(scenarioId = 2L))
 
-            handler.isRunning(1L) shouldBeTrue()
-            handler.isRunning(2L) shouldBeTrue()
+            handler.isRunning(1L).shouldBeTrue()
+            handler.isRunning(2L).shouldBeTrue()
             handler.stopAll()
         }
     }
