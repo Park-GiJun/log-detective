@@ -30,6 +30,19 @@ interface OutboxPersistencePort {
     fun markDeadAll(deads: List<DeadUpdate>)
 
     /**
+     * PUBLISHED 상태이면서 published_at 이 [threshold] 이전인 행을 영구 삭제한다.
+     * GDPR / 개인정보보호법 보관 기한 준수를 위한 retention 잡 전용 — 영향 행 수를 반환한다.
+     */
+    fun purgePublishedOlderThan(threshold: Instant): Int
+
+    /**
+     * DEAD 상태이면서 created_at 이 [threshold] 이전인 행을 영구 삭제한다.
+     * DEAD 행은 운영자가 분석을 마쳤다고 가정하고, 보관 기한 초과 시 일괄 purge.
+     * 본 PR 은 단순 purge — archive(S3) 는 별도 이슈로 분리한다. 영향 행 수를 반환한다.
+     */
+    fun purgeDeadOlderThan(threshold: Instant): Int
+
+    /**
      * @property id outbox 행 id.
      * @property error redact 처리된 error 메시지.
      * @property nextAttemptAt 백오프 적용된 다음 시도 시각.

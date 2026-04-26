@@ -74,4 +74,33 @@ interface OutboxJpaRepository : JpaRepository<OutboxEntity, Long> {
         """,
     )
     fun markDead(@Param("id") id: Long, @Param("error") error: String): Int
+
+    /**
+     * PUBLISHED 행 retention purge — `published_at < threshold` 기준.
+     * native query 사용 이유: JPQL 의 `delete` 는 OK 지만, 동일 모듈의 다른 native
+     * 쿼리 (`fetchPendingForUpdate`) 와 일관된 SQL 식별자/스키마 표기를 유지하기 위함.
+     */
+    @Modifying
+    @Query(
+        value = """
+            delete from ingest.outbox_messages
+            where status = 'PUBLISHED' and published_at < :threshold
+        """,
+        nativeQuery = true,
+    )
+    fun deletePublishedOlderThan(@Param("threshold") threshold: Instant): Int
+
+    /**
+     * DEAD 행 retention purge — `created_at < threshold` 기준.
+     * DEAD 는 published_at 이 null 일 수 있으므로 created_at 기준으로 판단한다.
+     */
+    @Modifying
+    @Query(
+        value = """
+            delete from ingest.outbox_messages
+            where status = 'DEAD' and created_at < :threshold
+        """,
+        nativeQuery = true,
+    )
+    fun deleteDeadOlderThan(@Param("threshold") threshold: Instant): Int
 }

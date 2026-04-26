@@ -10,6 +10,7 @@ import com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.outbox.
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
+import java.time.Instant
 
 /**
  * Outbox 영속성 어댑터.
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional
  * - [fetchPending] 은 자체 트랜잭션 (REQUIRES_NEW). 호출자의 dispatch 시간이 락 점유에 묶이지 않게.
  * - [markPublishedAll] / [markFailedAll] / [markDeadAll] 도 각자 자체 트랜잭션.
  * - [saveAll] 은 호출자 (LogEventCommandHandler) 트랜잭션에 참여 — 이벤트 저장과 원자성 보장.
+ * - [purgePublishedOlderThan] / [purgeDeadOlderThan] 은 retention 잡 전용 자체 트랜잭션 (이슈 #49).
  */
 @Component
 class OutboxPersistenceAdapter(
@@ -53,6 +55,14 @@ class OutboxPersistenceAdapter(
     override fun markDeadAll(deads: List<DeadUpdate>) {
         deads.forEach { repository.markDead(it.id, it.error) }
     }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    override fun purgePublishedOlderThan(threshold: Instant): Int =
+        repository.deletePublishedOlderThan(threshold)
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    override fun purgeDeadOlderThan(threshold: Instant): Int =
+        repository.deleteDeadOlderThan(threshold)
 
     companion object {
         private const val MAX_LIMIT = 1000

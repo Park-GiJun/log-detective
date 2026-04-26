@@ -23,3 +23,14 @@ spring:
 logdetect:
   ingest:
     batch-max-size: ${INGEST_BATCH_MAX:500}
+  outbox:
+    # PII 마스킹 토글 — true 시 outbox.payload 의 ip/userId 가 마스킹되어 저장된다.
+    # 다운스트림(ES/Kafka) 도 마스킹된 데이터를 받게 되므로 운영 결정에 따라 활성화.
+    payload-pii-mask: ${OUTBOX_PAYLOAD_PII_MASK:false}
+    retention:
+      # PUBLISHED 행 보관 기한 (일). 기한 초과 시 retention 잡이 purge.
+      published-days: ${OUTBOX_RETENTION_PUBLISHED_DAYS:7}
+      # DEAD 행 보관 기한 (일). 운영자 분석 여유 후 purge.
+      dead-days: ${OUTBOX_RETENTION_DEAD_DAYS:30}
+      # retention 잡 cron — 기본 매일 03:00 (Asia/Seoul).
+      cron: ${OUTBOX_RETENTION_CRON:0 0 3 * * *}
