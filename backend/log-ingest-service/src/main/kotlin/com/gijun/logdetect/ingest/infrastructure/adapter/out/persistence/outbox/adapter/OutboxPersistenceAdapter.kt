@@ -27,6 +27,11 @@ class OutboxPersistenceAdapter(
         repository.markPublished(id, Instant.now())
     }
 
+    override fun markPublishedAll(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        repository.markPublishedAll(ids, Instant.now())
+    }
+
     override fun markFailed(id: Long, error: String, nextAttemptAt: Instant) {
         repository.markFailed(id, error, nextAttemptAt)
     }
