@@ -12,6 +12,7 @@ import com.gijun.logdetect.ingest.application.port.out.LogEventPersistencePort
 import com.gijun.logdetect.ingest.application.port.out.OutboxPersistencePort
 import com.gijun.logdetect.ingest.domain.enums.ChannelType
 import com.gijun.logdetect.ingest.domain.enums.OutboxStatus
+import com.gijun.logdetect.ingest.domain.model.IngestedLogEvent
 import com.gijun.logdetect.ingest.domain.model.Outbox
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.collections.shouldHaveSize
@@ -68,7 +69,7 @@ class LogEventCommandHandlerTest : DescribeSpec({
                 userId = "user-1",
                 attributes = mapOf("k" to "v"),
             )
-            every { persistencePort.save(any()) } returns (savedEvent to Instant.now())
+            every { persistencePort.save(any()) } returns IngestedLogEvent(savedEvent, Instant.now())
 
             val captured = slot<List<Outbox>>()
             every { outboxPort.saveAll(capture(captured)) } returns Unit
@@ -97,7 +98,7 @@ class LogEventCommandHandlerTest : DescribeSpec({
                 message = "m",
                 timestamp = ts,
             )
-            every { persistencePort.save(any()) } returns (saved to Instant.now())
+            every { persistencePort.save(any()) } returns IngestedLogEvent(saved, Instant.now())
 
             val captured = slot<List<Outbox>>()
             every { outboxPort.saveAll(capture(captured)) } returns Unit
@@ -122,7 +123,7 @@ class LogEventCommandHandlerTest : DescribeSpec({
                 message = "m",
                 timestamp = Instant.parse("2026-04-26T10:00:00Z"),
             )
-            every { persistencePort.save(any()) } returns (saved to Instant.now())
+            every { persistencePort.save(any()) } returns IngestedLogEvent(saved, Instant.now())
 
             val captured = slot<List<Outbox>>()
             every { outboxPort.saveAll(capture(captured)) } returns Unit
@@ -151,7 +152,7 @@ class LogEventCommandHandlerTest : DescribeSpec({
                     timestamp = Instant.parse("2026-04-26T10:00:00Z"),
                 )
             }
-            every { persistencePort.saveAll(any()) } returns savedEvents.map { it to Instant.now() }
+            every { persistencePort.saveAll(any()) } returns savedEvents.map { IngestedLogEvent(it, Instant.now()) }
 
             val captured = slot<List<Outbox>>()
             every { outboxPort.saveAll(capture(captured)) } returns Unit
