@@ -1,8 +1,9 @@
 package com.gijun.logdetect.ingest.infrastructure.adapter.`in`.web.filter
 
+import com.gijun.logdetect.common.security.ApiKeyConstants
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
-import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -41,14 +42,17 @@ class ApiKeyAuthenticationFilterTest : DescribeSpec({
 
         it("정상 헤더가 들어오면 chain.doFilter 호출 + Authentication 등록") {
             val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
-                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, EXPECTED_KEY)
+                addHeader(ApiKeyConstants.HEADER_NAME, EXPECTED_KEY)
             }
             val response = MockHttpServletResponse()
             val chain = mockk<FilterChain>(relaxed = true)
             // 인증 등록을 chain 호출 시점에 캡처하기 위해 doFilter 안에서 컨텍스트 검사.
             var capturedPrincipal: Any? = null
+            var capturedAuthorities: Collection<*>? = null
             every { chain.doFilter(any(), any()) } answers {
-                capturedPrincipal = SecurityContextHolder.getContext().authentication?.principal
+                val auth = SecurityContextHolder.getContext().authentication
+                capturedPrincipal = auth?.principal
+                capturedAuthorities = auth?.authorities
             }
 
             filter.doFilter(request, response, chain)
@@ -56,6 +60,8 @@ class ApiKeyAuthenticationFilterTest : DescribeSpec({
             verify(exactly = 1) { chain.doFilter(request, response) }
             response.status shouldBe HttpStatus.OK.value()
             capturedPrincipal shouldBe ApiKeyAuthenticationFilter.CLIENT_PRINCIPAL
+            // 권한 모델 미도입 — authorities 는 비어있어야 한다 (이슈 #112 M1).
+            capturedAuthorities.shouldNotBeNull().shouldBeEmpty()
             // 컨텍스트는 finally 블록에서 clear 되어야 한다 (스레드 재사용 누수 방지).
             SecurityContextHolder.getContext().authentication shouldBe null
         }
@@ -69,13 +75,15 @@ class ApiKeyAuthenticationFilterTest : DescribeSpec({
 
             response.status shouldBe HttpStatus.UNAUTHORIZED.value()
             response.contentType shouldBe MediaType.APPLICATION_JSON_VALUE
-            response.contentAsString.shouldContain("Unauthorized")
+            // ApiErrorResponse(error, message) 직렬화 결과 검증 (이슈 #112 L8).
+            response.contentAsString.shouldContain("\"error\":\"Unauthorized\"")
+            response.contentAsString.shouldContain("\"message\":\"Invalid or missing API key\"")
             verify(exactly = 0) { chain.doFilter(any(), any()) }
         }
 
         it("헤더 값이 빈 문자열이면 401") {
             val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
-                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, "")
+                addHeader(ApiKeyConstants.HEADER_NAME, "")
             }
             val response = MockHttpServletResponse()
             val chain = mockk<FilterChain>(relaxed = true)
@@ -88,7 +96,7 @@ class ApiKeyAuthenticationFilterTest : DescribeSpec({
 
         it("잘못된 헤더 값이면 401") {
             val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
-                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, "wrong-key")
+                addHeader(ApiKeyConstants.HEADER_NAME, "wrong-key")
             }
             val response = MockHttpServletResponse()
             val chain = mockk<FilterChain>(relaxed = true)
@@ -102,7 +110,7 @@ class ApiKeyAuthenticationFilterTest : DescribeSpec({
         it("길이만 같은 다른 값도 401 (timing-safe 비교)") {
             val sameLengthDifferent = "X".repeat(EXPECTED_KEY.length)
             val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
-                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, sameLengthDifferent)
+                addHeader(ApiKeyConstants.HEADER_NAME, sameLengthDifferent)
             }
             val response = MockHttpServletResponse()
             val chain = mockk<FilterChain>(relaxed = true)
@@ -117,7 +125,7 @@ class ApiKeyAuthenticationFilterTest : DescribeSpec({
         // 회귀 시나리오: trim 누락으로 빈 키와 공백 키가 다르게 취급되면 인증 우회 위험.
         it("헤더 값이 단일 공백 문자면 401") {
             val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
-                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, " ")
+                addHeader(ApiKeyConstants.HEADER_NAME, " ")
             }
             val response = MockHttpServletResponse()
             val chain = mockk<FilterChain>(relaxed = true)
@@ -130,7 +138,7 @@ class ApiKeyAuthenticationFilterTest : DescribeSpec({
 
         it("헤더 값이 탭 문자뿐이면 401") {
             val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
-                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, "\t")
+                addHeader(ApiKeyConstants.HEADER_NAME, "\t")
             }
             val response = MockHttpServletResponse()
             val chain = mockk<FilterChain>(relaxed = true)
@@ -145,8 +153,8 @@ class ApiKeyAuthenticationFilterTest : DescribeSpec({
         // 첫 값이 정상 키면 통과, 첫 값이 잘못된 키면 두 번째에 정답이 있어도 401.
         it("동일 헤더 다중 값 — 첫 값이 정상 키면 통과 (Servlet getHeader 의 first-value 동작)") {
             val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
-                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, EXPECTED_KEY)
-                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, "second-wrong")
+                addHeader(ApiKeyConstants.HEADER_NAME, EXPECTED_KEY)
+                addHeader(ApiKeyConstants.HEADER_NAME, "second-wrong")
             }
             val response = MockHttpServletResponse()
             val chain = mockk<FilterChain>(relaxed = true)
@@ -159,8 +167,8 @@ class ApiKeyAuthenticationFilterTest : DescribeSpec({
 
         it("동일 헤더 다중 값 — 첫 값이 잘못된 키면 401 (두 번째에 정답이 있어도)") {
             val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
-                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, "first-wrong")
-                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, EXPECTED_KEY)
+                addHeader(ApiKeyConstants.HEADER_NAME, "first-wrong")
+                addHeader(ApiKeyConstants.HEADER_NAME, EXPECTED_KEY)
             }
             val response = MockHttpServletResponse()
             val chain = mockk<FilterChain>(relaxed = true)
@@ -169,25 +177,6 @@ class ApiKeyAuthenticationFilterTest : DescribeSpec({
 
             response.status shouldBe HttpStatus.UNAUTHORIZED.value()
             verify(exactly = 0) { chain.doFilter(any(), any()) }
-        }
-
-        // 이슈 #108 — 정상 인증 케이스의 authorities 검증. ROLE_INGEST 가 누락되면
-        // SecurityFilterChain 의 hasAuthority 룰이 통과해도 권한 분기 회귀에 무방비.
-        it("정상 인증 케이스에서 SecurityContext authentication.authorities 가 ROLE_INGEST 를 포함한다") {
-            val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
-                addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, EXPECTED_KEY)
-            }
-            val response = MockHttpServletResponse()
-            val chain = mockk<FilterChain>(relaxed = true)
-            var capturedAuthorities: List<String> = emptyList()
-            every { chain.doFilter(any(), any()) } answers {
-                capturedAuthorities = SecurityContextHolder.getContext().authentication
-                    ?.authorities.orEmpty().map { it.authority }
-            }
-
-            filter.doFilter(request, response, chain)
-
-            capturedAuthorities shouldContain ApiKeyAuthenticationFilter.ROLE_INGEST
         }
     }
 
@@ -225,7 +214,7 @@ class ApiKeyAuthenticationFilterTest : DescribeSpec({
             // expectedKeyBytes 가 init 시 1회만 인코딩되어도 매 요청 인증이 정상 동작해야 한다.
             repeat(5) {
                 val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
-                    addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, EXPECTED_KEY)
+                    addHeader(ApiKeyConstants.HEADER_NAME, EXPECTED_KEY)
                 }
                 val response = MockHttpServletResponse()
                 val chain = mockk<FilterChain>(relaxed = true)
@@ -241,7 +230,7 @@ class ApiKeyAuthenticationFilterTest : DescribeSpec({
 
             repeat(3) {
                 val request = MockHttpServletRequest("POST", "/api/v1/logs").apply {
-                    addHeader(ApiKeyAuthenticationFilter.HEADER_NAME, EXPECTED_KEY)
+                    addHeader(ApiKeyConstants.HEADER_NAME, EXPECTED_KEY)
                 }
                 val response = MockHttpServletResponse()
                 val chain = mockk<FilterChain>(relaxed = true)

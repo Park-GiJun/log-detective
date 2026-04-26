@@ -1,5 +1,6 @@
 package com.gijun.logdetect.generator.infrastructure.adapter.out.client
 
+import com.gijun.logdetect.common.security.ApiKeyConstants
 import com.gijun.logdetect.generator.application.port.out.IngestSendClientPort
 import com.gijun.logdetect.generator.domain.model.LogEvent
 import com.gijun.logdetect.generator.infrastructure.adapter.out.client.dto.IngestSendRequest
@@ -10,6 +11,7 @@ import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
@@ -24,8 +26,11 @@ class IngestSendClientAdapter(
     // 이슈 #86 — log-ingest-service 가 X-API-Key 헤더로 인증을 요구한다.
     // 양쪽 모듈이 같은 INGEST_API_KEY 환경변수를 읽도록 해 키 동기화 누락을 줄인다.
     @Value("\${generator.ingest.api-key:}") private val apiKey: String,
+    // 이슈 #112 L9 — apiKey 누락이 운영 사고로 직결되는 환경에서는 부팅 단계에서 fail-fast.
+    // default false 로 두는 이유: 로컬/통합 테스트 일부가 mock 서버 대상이라 키 없이도 200 을 받기 때문.
+    @Value("\${generator.ingest.api-key-required:false}") private val apiKeyRequired: Boolean = false,
 ) : IngestSendClientPort {
-    private val logger = LoggerFactory.getLogger(this.javaClass)
+    private val logger: Logger = LoggerFactory.getLogger(this.javaClass)
 
     // 콤마 분리된 빈 문자열을 split 하면 [""] 가 나오므로 blank 제거.
     private val sanitizedAllowedHosts: List<String> = allowedHosts.map { it.trim() }.filter { it.isNotEmpty() }
@@ -38,10 +43,18 @@ class IngestSendClientAdapter(
             allowedHosts = sanitizedAllowedHosts,
             allowPrivateNetwork = allowPrivateNetwork,
         )
-        // API Key 미설정은 운영 환경에서 100% 401 을 의미. 부팅 단계 경고로 조기 인지시킨다.
-        // (require 까지는 안 거는 이유 — 로컬 mock 서버 / 일부 통합 테스트가 키 없이 200 을 반환할 수 있어서.)
+        // 이슈 #112 L9 / M10 — apiKey 누락 정책 토글:
+        //  - required=true → 부팅 즉시 fail-fast (운영 권장).
+        //  - required=false → warn 만 로그 후 진행 (기본값, 로컬/mock 통합 테스트 호환).
         if (apiKey.isBlank()) {
-            logger.warn("generator.ingest.api-key 가 비어있음 — log-ingest-service 호출이 401 로 실패한다. INGEST_API_KEY 환경변수를 설정하라.")
+            require(!apiKeyRequired) {
+                "generator.ingest.api-key 가 비어있음. INGEST_API_KEY 환경변수를 설정하거나 " +
+                    "generator.ingest.api-key.required=false 로 토글하라."
+            }
+            logger.warn(
+                "generator.ingest.api-key 가 비어있음 — log-ingest-service 호출이 401 로 실패한다. " +
+                    "INGEST_API_KEY 환경변수를 설정하라.",
+            )
         }
     }
 
@@ -67,7 +80,7 @@ class IngestSendClientAdapter(
                 contentType(ContentType.Application.Json)
                 // 이슈 #86 — log-ingest-service 의 ApiKeyAuthenticationFilter 가 요구하는 헤더.
                 if (apiKey.isNotBlank()) {
-                    header(API_KEY_HEADER, apiKey)
+                    header(ApiKeyConstants.HEADER_NAME, apiKey)
                 }
                 setBody(IngestSendRequest.from(log))
             }
@@ -76,9 +89,5 @@ class IngestSendClientAdapter(
             logger.error("Ingest 전송 실패 — transactionId: {}", log.transactionId, e)
             false
         }
-    }
-
-    companion object {
-        const val API_KEY_HEADER = "X-API-Key"
     }
 }

@@ -2,9 +2,9 @@ package com.gijun.logdetect.ingest.integration
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.gijun.logdetect.common.security.ApiKeyConstants
 import com.gijun.logdetect.ingest.application.port.out.OutboxPersistencePort
 import com.gijun.logdetect.ingest.domain.enums.OutboxStatus
-import com.gijun.logdetect.ingest.infrastructure.adapter.`in`.web.filter.ApiKeyAuthenticationFilter
 import com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.outbox.repository.OutboxJpaRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.awaitility.Awaitility.await
@@ -80,7 +80,7 @@ class LogIngestE2EIntegrationTest : IntegrationTestBase() {
         val headers = HttpHeaders().apply {
             contentType = MediaType.APPLICATION_JSON
             // 이슈 #86 — ApiKeyAuthenticationFilter 가 요구하는 헤더. application-test.yml 의 키와 일치.
-            set(ApiKeyAuthenticationFilter.HEADER_NAME, TEST_API_KEY)
+            set(ApiKeyConstants.HEADER_NAME, TEST_API_KEY)
         }
         val response = rest.postForEntity(
             "http://localhost:$port/api/v1/logs",

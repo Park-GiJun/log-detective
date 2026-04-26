@@ -424,7 +424,70 @@ interface DetectionRule {
 
 ---
 
-## 14. 오픈 이슈
+## 14. 보안 / 인증 모델
+
+> 출처: 이슈 #86, #112 — service-to-service 인증 정책 명문화 (윤지아 Domain Expert / 박서진 Security)
+
+### 14.1 service-to-service 인증 (Phase 1~3)
+
+내부 서비스 간 호출 (Generator → Ingest) 은 **API Key 헤더 인증** 으로 처리한다.
+JWT/OAuth 인프라를 도입하지 않는 이유 — internal 망 / 호출 주체가 1~N 개로 한정 / 운영 복잡도 최소화.
+
+| 항목 | 정책 |
+|---|---|
+| **헤더명** | `X-API-Key` — `log-common` 의 `ApiKeyConstants.HEADER_NAME` 단일 소스 |
+| **저장** | 환경변수 `INGEST_API_KEYS` (comma-separated, multi-key) — 평문 저장 금지, 비밀 관리 시스템 권장 |
+| **비교** | `MessageDigest.isEqual` timing-safe 비교 — 측면 채널 추론 차단 |
+| **실패 응답** | `401 Unauthorized` + `ApiErrorResponse` JSON 본문 (헤더 값 재노출 금지) |
+| **헬스체크** | `/actuator/health/**`, `/actuator/info` 는 인증 우회 (LB 헬스체크용) |
+
+### 14.2 Rotation 정책 (zero-downtime)
+
+키 누설 / 정기 회전 시 무중단 교체:
+
+1. **신키 추가** — `INGEST_API_KEYS=oldKey,newKey` (양키 동시 활성)
+2. **호출자 전환** — Generator 쪽 `INGEST_API_KEY` 를 newKey 로 교체 → 재시작
+3. **구키 제거** — `INGEST_API_KEYS=newKey` 단일화 → Ingest 재시작
+
+> 현재 구현(`logdetect.ingest.api-key`) 은 **단일 키 only** — multi-key 지원은 후속 이슈로 분리.
+
+### 14.3 Rate-limit / lockout
+
+브루트포스 / 사전 공격 방어:
+
+| 항목 | 정책 |
+|---|---|
+| **단위** | IP 단위 (Authentication 실패 ip 기준) |
+| **임계** | 5회 실패 / 5분 윈도우 |
+| **lockout** | 5분 차단 — 차단 중에도 401 반환 (in/out 동일 응답) |
+| **저장** | Redisson `RRateLimiter` — Phase 1.5 도입 예정 (현재 미구현) |
+
+### 14.4 클라이언트 식별
+
+향후 호출자별 감사 추적을 위해 키 자체에 식별자 prefix 를 둘 수 있도록 형식 정의:
+
+- 형식: `clientId:key` (예: `generator-prod:abc123...`)
+- principal 에 `clientId` 사용 — `SecurityContext.authentication.principal`
+- 현재 구현은 단일 principal `"api-client"` — Phase 1.5 에서 형식 도입.
+
+### 14.5 향후 마이그레이션 (Phase 4 — gateway 통합)
+
+`log-gateway` 가 도입되면 인증 책임을 위임:
+
+- **bearer JWT** — 외부 호출자 (UI / partner API) 대상
+- **mTLS** — 클러스터 내부 호출 (선택)
+- **API Key** — legacy / batch 호출자 호환 유지
+
+본 절의 API Key 정책은 Phase 4 전까지 유지하며, gateway 도입 후 점진 폐기한다.
+
+### 14.6 authorities / role 모델
+
+현재는 권한 분기 미사용 — `UsernamePasswordAuthenticationToken(principal, null, emptyList())`.
+향후 read-only / write 등 권한 차등이 필요해지면 `ROLE_INGEST_WRITE` 등 도입.
+
+---
+
+## 15. 오픈 이슈
 
 - [ ] Spring Boot 4.0.5 + Kotlin 2.3.20 조합의 잠재 문제 — Spring Boot 4.1 릴리즈 시점에 재검증
 - [ ] ES 8.17 + Spring Data Elasticsearch BOM 관리 버전 호환성 확인 필요

@@ -23,6 +23,10 @@ generator:
   # 양쪽 모듈의 키 동기화 누락을 막는다.
   ingest:
     api-key: ${INGEST_API_KEY:}
+    # 이슈 #112 L9 — apiKey 누락 정책 토글.
+    # default=false: 로컬/mock 통합 테스트 호환 (warn 만).
+    # 운영(true 권장): 부팅 시점에 fail-fast 하여 401 무한 재시도를 차단.
+    api-key-required: ${INGEST_API_KEY_REQUIRED:false}
 
   # SSRF 가드 — targetUrl 이 외부 환경변수로 주입될 때 사설망/메타데이터 엔드포인트 차단.
   ssrf:
