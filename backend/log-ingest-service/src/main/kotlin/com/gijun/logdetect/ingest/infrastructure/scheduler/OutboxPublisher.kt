@@ -7,6 +7,7 @@ import com.gijun.logdetect.ingest.application.port.out.LogEventSearchPort
 import com.gijun.logdetect.ingest.application.port.out.OutboxPersistencePort
 import com.gijun.logdetect.ingest.domain.enums.ChannelType
 import com.gijun.logdetect.ingest.domain.model.Outbox
+import com.gijun.logdetect.ingest.infrastructure.util.ErrorRedactor
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
@@ -59,7 +60,9 @@ class OutboxPublisher(
 
     private fun handleFailure(outbox: Outbox, e: Exception) {
         val id = outbox.id ?: return
-        val error = e.message?.take(MAX_ERROR_LENGTH) ?: e.javaClass.simpleName
+        // 외부 시스템 예외에 호스트/자격 증명/토큰이 노출될 수 있으므로 redact 후 저장.
+        val raw = e.message ?: e.javaClass.simpleName
+        val error = ErrorRedactor.redact(raw).take(MAX_ERROR_LENGTH)
         val nextAttempts = outbox.attempts + 1
         if (nextAttempts >= MAX_ATTEMPTS) {
             logger.warn("Outbox 최대 시도 초과 — id: {}, attempts: {}", id, nextAttempts, e)
