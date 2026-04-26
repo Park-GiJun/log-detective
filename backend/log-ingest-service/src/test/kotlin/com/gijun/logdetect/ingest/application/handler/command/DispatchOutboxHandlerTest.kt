@@ -1,5 +1,6 @@
 package com.gijun.logdetect.ingest.application.handler.command
 
+import com.gijun.logdetect.ingest.application.port.out.ErrorRedactorPort
 import com.gijun.logdetect.ingest.application.port.out.LogEventMessagePort
 import com.gijun.logdetect.ingest.application.port.out.LogEventSearchPort
 import com.gijun.logdetect.ingest.application.port.out.OutboxPersistencePort
@@ -24,7 +25,7 @@ class DispatchOutboxHandlerTest : DescribeSpec({
 
     val fixedNow: Instant = Instant.parse("2026-04-26T10:00:00Z")
     fun fixedClock() = Clock { fixedNow }
-    fun identityRedactor() = DispatchOutboxHandler.ErrorRedactorPort { it }
+    fun identityRedactor() = ErrorRedactorPort { it }
 
     fun outbox(
         id: Long = 1L,
