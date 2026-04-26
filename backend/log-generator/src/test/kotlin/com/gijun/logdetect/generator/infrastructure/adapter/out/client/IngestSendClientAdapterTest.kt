@@ -18,6 +18,7 @@ import java.io.IOException
 import java.time.Instant
 
 private const val TARGET_URL = "http://ingest-test/api/v1/logs"
+private const val TEST_API_KEY = "test-api-key"
 private val ALLOWED_HOSTS = listOf("ingest-test")
 
 class IngestSendClientAdapterTest : DescribeSpec({
@@ -29,7 +30,7 @@ class IngestSendClientAdapterTest : DescribeSpec({
         }
     }
 
-    fun newAdapter(httpClient: HttpClient): IngestSendClientAdapter =
+    fun newAdapter(httpClient: HttpClient, apiKey: String = TEST_API_KEY): IngestSendClientAdapter =
         IngestSendClientAdapter(
             httpClient = httpClient,
             targetUrl = TARGET_URL,
@@ -37,6 +38,7 @@ class IngestSendClientAdapterTest : DescribeSpec({
             allowedHosts = ALLOWED_HOSTS,
             // 화이트리스트(`ingest-test`)에 매치되어 InetAddress 해석을 건너뛰므로 활성화해도 안전.
             perRequestValidation = true,
+            apiKey = apiKey,
         )
 
     fun sampleEvent() = LogEvent(

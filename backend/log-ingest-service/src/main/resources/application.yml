@@ -47,6 +47,10 @@ spring:
 logdetect:
   ingest:
     batch-max-size: ${INGEST_BATCH_MAX:500}
+    # 이슈 #86 — X-API-Key 헤더 인증용 사전 공유키.
+    # 비어있으면 ApiKeyAuthenticationFilter 가 부팅 시 fail-fast 한다.
+    # log-generator 도 같은 값으로 설정해야 호출이 통과된다.
+    api-key: ${INGEST_API_KEY:}
   outbox:
     # PII 마스킹 토글 — true 시 outbox.payload 의 ip/userId 가 마스킹되어 저장된다.
     # 다운스트림(ES/Kafka) 도 마스킹된 데이터를 받게 되므로 운영 결정에 따라 활성화.
