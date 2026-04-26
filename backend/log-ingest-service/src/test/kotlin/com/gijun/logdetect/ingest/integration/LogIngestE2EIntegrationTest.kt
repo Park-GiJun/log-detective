@@ -16,6 +16,7 @@ import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
+import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestTemplate
 import java.time.Duration
 import java.time.ZoneOffset
@@ -48,6 +49,19 @@ class LogIngestE2EIntegrationTest : IntegrationTestBase() {
         private const val TEST_API_KEY = "test-api-key"
     }
 
+    private fun sampleBody(timestamp: java.time.Instant): String = """
+        {
+          "source": "integration-test",
+          "level": "INFO",
+          "message": "hello-from-test",
+          "timestamp": "$timestamp",
+          "host": "host-test",
+          "ip": "10.0.0.99",
+          "userId": "user-test",
+          "attributes": {"k": "v"}
+        }
+    """.trimIndent()
+
     @BeforeEach
     fun cleanupOutbox() {
         outboxRepository.deleteAll()
@@ -61,18 +75,7 @@ class LogIngestE2EIntegrationTest : IntegrationTestBase() {
     @Test
     fun `POST api v1 logs - log_events 1행 + outbox 2행이 생성되고 OutboxPublisher 가 ES + Kafka 로 발행하여 PUBLISHED 전이`() {
         val timestamp = clock.now()
-        val body = """
-            {
-              "source": "integration-test",
-              "level": "INFO",
-              "message": "hello-from-test",
-              "timestamp": "$timestamp",
-              "host": "host-test",
-              "ip": "10.0.0.99",
-              "userId": "user-test",
-              "attributes": {"k": "v"}
-            }
-        """.trimIndent()
+        val body = sampleBody(timestamp)
 
         val headers = HttpHeaders().apply {
             contentType = MediaType.APPLICATION_JSON
@@ -120,6 +123,46 @@ class LogIngestE2EIntegrationTest : IntegrationTestBase() {
                 val count = elasticsearchClient.count { it.index(esIndex) }.count()
                 assertThat(count).isEqualTo(1L)
             }
+    }
+
+    // 이슈 #108 — 401 회귀 방어. 헤더 누락 / 잘못된 키 케이스에서 outbox 가 1행도 만들어지지 않아야 한다.
+    // PR #106 도입 직전에는 permitAll 회귀가 있어 헤더 없어도 200 + outbox 행 생성이 통과했다.
+    @Test
+    fun `POST api v1 logs - X-API-Key 헤더 누락 시 401 응답 + outbox 0행`() {
+        val body = sampleBody(clock.now())
+        val headers = HttpHeaders().apply { contentType = MediaType.APPLICATION_JSON }
+
+        val ex = org.junit.jupiter.api.assertThrows<HttpClientErrorException> {
+            rest.postForEntity(
+                "http://localhost:$port/api/v1/logs",
+                HttpEntity(body, headers),
+                String::class.java,
+            )
+        }
+
+        assertThat(ex.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        // 인증 실패는 컨트롤러까지 도달하지 못하므로 outbox 도 0행이어야 한다.
+        assertThat(outboxRepository.findAll()).isEmpty()
+    }
+
+    @Test
+    fun `POST api v1 logs - 잘못된 X-API-Key 값이면 401 응답 + outbox 0행`() {
+        val body = sampleBody(clock.now())
+        val headers = HttpHeaders().apply {
+            contentType = MediaType.APPLICATION_JSON
+            set(ApiKeyAuthenticationFilter.HEADER_NAME, "wrong-key")
+        }
+
+        val ex = org.junit.jupiter.api.assertThrows<HttpClientErrorException> {
+            rest.postForEntity(
+                "http://localhost:$port/api/v1/logs",
+                HttpEntity(body, headers),
+                String::class.java,
+            )
+        }
+
+        assertThat(ex.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        assertThat(outboxRepository.findAll()).isEmpty()
     }
 
     @Test
