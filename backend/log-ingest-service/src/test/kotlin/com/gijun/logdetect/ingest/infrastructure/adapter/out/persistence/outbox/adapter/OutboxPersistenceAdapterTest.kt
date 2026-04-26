@@ -22,7 +22,7 @@ class OutboxPersistenceAdapterTest : DescribeSpec({
 
         it("limit 가 1 미만이면 1 로 보정된다 — repository 에 1 이 전달된다") {
             val repo = mockk<OutboxJpaRepository>()
-            val adapter = OutboxPersistenceAdapter(repo)
+            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.Clock { java.time.Instant.now() })
             val captured = slot<Int>()
             every { repo.fetchPendingForUpdate(capture(captured)) } returns emptyList()
 
@@ -35,7 +35,7 @@ class OutboxPersistenceAdapterTest : DescribeSpec({
 
         it("limit 가 MAX_LIMIT(1000) 초과면 1000 으로 잘린다 — DoS 방어") {
             val repo = mockk<OutboxJpaRepository>()
-            val adapter = OutboxPersistenceAdapter(repo)
+            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.Clock { java.time.Instant.now() })
             val captured = slot<Int>()
             every { repo.fetchPendingForUpdate(capture(captured)) } returns emptyList()
 
@@ -48,7 +48,7 @@ class OutboxPersistenceAdapterTest : DescribeSpec({
 
         it("정상 범위(1..1000)는 그대로 통과한다") {
             val repo = mockk<OutboxJpaRepository>()
-            val adapter = OutboxPersistenceAdapter(repo)
+            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.Clock { java.time.Instant.now() })
             val captured = slot<Int>()
             every { repo.fetchPendingForUpdate(capture(captured)) } returns emptyList()
 
@@ -64,7 +64,7 @@ class OutboxPersistenceAdapterTest : DescribeSpec({
 
         it("repository 호출은 정확히 1회씩만 일어난다") {
             val repo = mockk<OutboxJpaRepository>()
-            val adapter = OutboxPersistenceAdapter(repo)
+            val adapter = OutboxPersistenceAdapter(repo, com.gijun.logdetect.ingest.domain.Clock { java.time.Instant.now() })
             every { repo.fetchPendingForUpdate(any()) } returns emptyList()
 
             adapter.fetchPending(50)

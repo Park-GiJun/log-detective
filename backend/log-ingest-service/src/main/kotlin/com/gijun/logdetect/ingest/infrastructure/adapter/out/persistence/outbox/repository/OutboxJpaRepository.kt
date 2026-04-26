@@ -31,17 +31,6 @@ interface OutboxJpaRepository : JpaRepository<OutboxEntity, Long> {
     )
     fun fetchPendingForUpdate(@Param("limit") limit: Int): List<OutboxEntity>
 
-    @Modifying
-    @Query(
-        """
-            update OutboxEntity o
-            set o.status = com.gijun.logdetect.ingest.domain.enums.OutboxStatus.PUBLISHED,
-                o.publishedAt = :publishedAt
-            where o.id = :id
-        """,
-    )
-    fun markPublished(@Param("id") id: Long, @Param("publishedAt") publishedAt: Instant): Int
-
     /**
      * 배치 dispatch 성공 id 들을 한 번의 UPDATE 로 PUBLISHED 처리한다.
      * row-by-row UPDATE 의 N+1 회피 목적.

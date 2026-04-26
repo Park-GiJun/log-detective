@@ -9,7 +9,10 @@ import com.gijun.logdetect.common.topic.KafkaTopics
 import com.gijun.logdetect.ingest.application.dto.command.IngestBatchCommand
 import com.gijun.logdetect.ingest.application.dto.command.IngestEventCommand
 import com.gijun.logdetect.ingest.application.port.out.LogEventPersistencePort
+import com.gijun.logdetect.ingest.application.port.out.OutboxPayloadSerializerPort
 import com.gijun.logdetect.ingest.application.port.out.OutboxPersistencePort
+import com.gijun.logdetect.ingest.application.port.out.SearchIndexResolverPort
+import com.gijun.logdetect.ingest.domain.Clock
 import com.gijun.logdetect.ingest.domain.enums.ChannelType
 import com.gijun.logdetect.ingest.domain.enums.OutboxStatus
 import com.gijun.logdetect.ingest.domain.model.IngestedLogEvent
@@ -29,18 +32,34 @@ import java.util.UUID
 class LogEventCommandHandlerTest : DescribeSpec({
 
     val esDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd")
+    val fixedNow: Instant = Instant.parse("2026-04-26T10:00:00Z")
 
     fun objectMapperForTest(): ObjectMapper =
         jacksonObjectMapper().registerModule(JavaTimeModule())
+
+    fun jacksonSerializer(mapper: ObjectMapper) =
+        OutboxPayloadSerializerPort { event -> mapper.writeValueAsString(event) }
+
+    fun esIndexResolver() = SearchIndexResolverPort { ts ->
+        "logs-${ts.atOffset(ZoneOffset.UTC).format(esDateFormatter)}"
+    }
+
+    fun fixedClock(now: Instant = fixedNow) = Clock { now }
 
     fun newHandler(
         persistencePort: LogEventPersistencePort = mockk(),
         outboxPort: OutboxPersistencePort = mockk(relaxed = true),
         mapper: ObjectMapper = objectMapperForTest(),
-    ) = LogEventCommandHandler(persistencePort, outboxPort, mapper)
+    ) = LogEventCommandHandler(
+        logEventPersistencePort = persistencePort,
+        outboxPersistencePort = outboxPort,
+        payloadSerializerPort = jacksonSerializer(mapper),
+        searchIndexResolverPort = esIndexResolver(),
+        clock = fixedClock(),
+    )
 
     fun ingestCommand(
-        timestamp: Instant = Instant.parse("2026-04-26T10:00:00Z"),
+        timestamp: Instant = fixedNow,
     ) = IngestEventCommand(
         source = "test-source",
         level = "INFO",
@@ -63,13 +82,13 @@ class LogEventCommandHandlerTest : DescribeSpec({
                 source = "test-source",
                 level = LogLevel.INFO,
                 message = "hello",
-                timestamp = Instant.parse("2026-04-26T10:00:00Z"),
+                timestamp = fixedNow,
                 host = "host-1",
                 ip = "10.0.0.1",
                 userId = "user-1",
                 attributes = mapOf("k" to "v"),
             )
-            every { persistencePort.save(any()) } returns IngestedLogEvent(savedEvent, Instant.now())
+            every { persistencePort.save(any()) } returns IngestedLogEvent(savedEvent, fixedNow)
 
             val captured = slot<List<Outbox>>()
             every { outboxPort.saveAll(capture(captured)) } returns Unit
@@ -98,7 +117,7 @@ class LogEventCommandHandlerTest : DescribeSpec({
                 message = "m",
                 timestamp = ts,
             )
-            every { persistencePort.save(any()) } returns IngestedLogEvent(saved, Instant.now())
+            every { persistencePort.save(any()) } returns IngestedLogEvent(saved, fixedNow)
 
             val captured = slot<List<Outbox>>()
             every { outboxPort.saveAll(capture(captured)) } returns Unit
@@ -121,9 +140,9 @@ class LogEventCommandHandlerTest : DescribeSpec({
                 source = "s",
                 level = LogLevel.WARN,
                 message = "m",
-                timestamp = Instant.parse("2026-04-26T10:00:00Z"),
+                timestamp = fixedNow,
             )
-            every { persistencePort.save(any()) } returns IngestedLogEvent(saved, Instant.now())
+            every { persistencePort.save(any()) } returns IngestedLogEvent(saved, fixedNow)
 
             val captured = slot<List<Outbox>>()
             every { outboxPort.saveAll(capture(captured)) } returns Unit
@@ -149,10 +168,10 @@ class LogEventCommandHandlerTest : DescribeSpec({
                     source = "s$it",
                     level = LogLevel.INFO,
                     message = "m$it",
-                    timestamp = Instant.parse("2026-04-26T10:00:00Z"),
+                    timestamp = fixedNow,
                 )
             }
-            every { persistencePort.saveAll(any()) } returns savedEvents.map { IngestedLogEvent(it, Instant.now()) }
+            every { persistencePort.saveAll(any()) } returns savedEvents.map { IngestedLogEvent(it, fixedNow) }
 
             val captured = slot<List<Outbox>>()
             every { outboxPort.saveAll(capture(captured)) } returns Unit
