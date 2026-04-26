@@ -2,6 +2,7 @@ package com.gijun.logdetect.ingest.application.handler.command
 
 import com.gijun.logdetect.ingest.application.dto.result.DispatchSummary
 import com.gijun.logdetect.ingest.application.port.`in`.command.DispatchOutboxUseCase
+import com.gijun.logdetect.ingest.application.port.out.ErrorRedactorPort
 import com.gijun.logdetect.ingest.application.port.out.LogEventMessagePort
 import com.gijun.logdetect.ingest.application.port.out.LogEventSearchPort
 import com.gijun.logdetect.ingest.application.port.out.OutboxPersistencePort
@@ -205,13 +206,6 @@ open class DispatchOutboxHandler(
         companion object {
             val EMPTY = ChannelOutcome(emptyList(), emptyList(), emptyList())
         }
-    }
-
-    /**
-     * 도메인이 인프라 (ErrorRedactor) 직접 의존하지 않도록, application 측 포트로 한 번 감싼다.
-     */
-    fun interface ErrorRedactorPort {
-        fun redact(input: String): String
     }
 
     companion object {
