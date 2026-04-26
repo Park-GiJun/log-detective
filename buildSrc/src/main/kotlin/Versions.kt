@@ -14,7 +14,9 @@ object Versions {
     const val KOTLINX_COROUTINES = "1.10.2"
 
     // Test
-    const val KOTEST = "6.1.0"
+    // Kotest 6.1.0 은 Kotlin 2.3.20 환경에서 KotestJunitPlatformTestEngine.discover 가
+    // NoSuchMethodError(SpecRef.Reference) 로 실패. 6.0.4 maintenance 라인으로 다운그레이드 — Refs #70
+    const val KOTEST = "6.0.4"
     const val MOCKK = "1.14.2"
     const val TESTCONTAINERS = "1.21.0"
 

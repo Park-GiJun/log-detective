@@ -85,15 +85,8 @@ afterEvaluate {
 }
 
 tasks.withType<Test> {
-    // Kotest 6.1.0 + Kotlin 2.3.20 환경에서 KotestJunitPlatformTestEngine.discover 가
-    // NoSuchMethodError(SpecRef.Reference) 로 실패한다. 호환 가능한 Kotest 버전 또는
-    // JUnit Jupiter 로 마이그레이션 전까지 kotest 엔진을 제외한다 — 별도 이슈.
-    useJUnitPlatform {
-        excludeEngines("kotest")
-    }
-    // log-generator 처럼 Kotest spec 만 있는 모듈은 위 제외로 인해 0개 발견 → Gradle 9
-    // 기본 동작 (failOnNoDiscoveredTests=true) 가 빌드를 깨므로 끔.
-    failOnNoDiscoveredTests = false
+    // Kotest 6.0.4 로 다운그레이드 후 kotest 엔진 활성화 — Refs #70
+    useJUnitPlatform()
     testLogging {
         events("passed", "skipped", "failed")
     }
