@@ -8,16 +8,19 @@ import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /**
  * Outbox dispatch 전용 Kafka 어댑터 — raw ByteArray payload 를 batch 로 발행.
  *
- * WHY — 기존 forEach 단건 send + 동기 wait 는 RTT × N 의 직렬 비용. send 는 우선 모두 호출하여
- * producer batch 에 모이게 한 뒤, 마지막에 한 번에 flush + 결과를 join 한다.
- * 같은 토픽으로 묶일 때 linger.ms / batch.size 가 producer 단에서 자연스럽게 묶어준다 (이슈 #40).
+ * WHY — 기존 구현은 send 후 forEach 안에서 `future.get(30s)` 를 호출하여, 한 행이라도 broker ack
+ * 가 늦으면 그 행의 timeout 만큼 다음 행이 직렬로 대기했다 (worst-case 30s × N).
+ * 이슈 #90 — 모든 future 를 먼저 등록하고 `CompletableFuture.allOf(...).get(timeout)` 으로
+ * **단일 timeout 창 안에서 일괄 wait**. 정상 흐름이면 가장 느린 한 건의 시간으로 끝난다.
  *
- * 부분 실패 처리 — 예외가 난 future 만 failures 에 담고 나머지는 successKeys 로 반환.
- * Outbox 단에서 성공한 행만 markPublished, 실패는 markFailed/Dead 로 분리한다.
+ * 부분 실패 처리 — `allOf` 가 timeout 으로 깨지더라도 개별 future 의 isDone/isCompletedExceptionally
+ * 를 검사하여 완료된 건은 성공/실패 분류, 미완료 건은 timeout 사유로 failures 에 누적한다.
+ * 같은 토픽으로 묶일 때 linger.ms / batch.size 가 producer 단에서 자연스럽게 묶어준다 (이슈 #40).
  */
 @Component
 class LogEventMessageAdapter(
@@ -31,7 +34,7 @@ class LogEventMessageAdapter(
             return BulkResult(successKeys = emptySet(), failures = emptyMap())
         }
 
-        // 1) 먼저 모든 send 를 호출 — producer 가 batch 에 누적.
+        // 1) 모든 send 를 먼저 호출 — producer 의 linger.ms / batch.size 에 누적.
         val pending: List<Pair<KafkaMessage, CompletableFuture<*>>> = messages.map { msg ->
             msg to outboxKafkaTemplate.send(msg.topic, msg.key, msg.payload)
         }
@@ -39,18 +42,35 @@ class LogEventMessageAdapter(
         // 2) flush — 누적된 batch 를 즉시 broker 로 push.
         outboxKafkaTemplate.flush()
 
-        // 3) 결과 join — broker ack 까지 대기. 부분 실패는 failures 에 담는다.
+        // 3) 단일 timeout 창에서 일괄 wait. 어느 future 가 이미 예외든 정상이든 allOf 가 묶어 준다.
+        //    allOf 의 결과만으로는 부분 실패를 식별할 수 없으므로, 개별 future 를 다시 순회한다.
+        val combined = CompletableFuture.allOf(*pending.map { it.second }.toTypedArray())
+        val timedOut = try {
+            combined.get(SEND_TIMEOUT_SEC, TimeUnit.SECONDS)
+            false
+        } catch (_: TimeoutException) {
+            true
+        } catch (_: Exception) {
+            // 개별 future 결과는 아래 루프에서 다시 검사하므로 여기서는 흡수.
+            false
+        }
+
         val failures = mutableMapOf<String, String>()
         pending.forEach { (msg, future) ->
-            try {
-                future.get(SEND_TIMEOUT_SEC, TimeUnit.SECONDS)
-            } catch (e: Exception) {
-                failures[msg.key] = e.message ?: e.javaClass.simpleName
+            when {
+                future.isCompletedExceptionally -> failures[msg.key] = extractError(future)
+                !future.isDone -> failures[msg.key] = "send timeout (${SEND_TIMEOUT_SEC}s)"
+                // isDone && !isCompletedExceptionally → 성공
             }
         }
 
         if (failures.isNotEmpty()) {
-            logger.warn("Kafka bulk 부분 실패 — 총 {} 건 중 {} 건 실패", messages.size, failures.size)
+            logger.warn(
+                "Kafka bulk 부분 실패 — 총 {} 건 중 {} 건 실패 (timeout={})",
+                messages.size,
+                failures.size,
+                timedOut,
+            )
         } else {
             logger.debug("Kafka bulk 발행 완료 — {} 건", messages.size)
         }
@@ -61,6 +81,19 @@ class LogEventMessageAdapter(
             .toSet()
         return BulkResult(successKeys = successKeys, failures = failures)
     }
+
+    /**
+     * 이미 isCompletedExceptionally 인 future 의 원인 메시지를 추출.
+     * `get()` 은 ExecutionException 으로 감싸므로 cause 까지 파고든다.
+     */
+    private fun extractError(future: CompletableFuture<*>): String =
+        try {
+            future.get(0, TimeUnit.MILLISECONDS)
+            "unknown error"
+        } catch (e: Exception) {
+            val cause = e.cause ?: e
+            cause.message ?: cause.javaClass.simpleName
+        }
 
     companion object {
         private const val SEND_TIMEOUT_SEC = 30L

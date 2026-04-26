@@ -47,13 +47,26 @@ class OutboxPersistenceAdapter(
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     override fun markFailedAll(failures: List<FailureUpdate>) {
-        // 행마다 nextAttemptAt / error 가 다르므로 row-by-row UPDATE — 다만 같은 트랜잭션으로 묶어 commit 1회.
-        failures.forEach { repository.markFailed(it.id, it.error, it.nextAttemptAt) }
+        if (failures.isEmpty()) return
+        // 동일 (error, nextAttemptAt) 묶음으로 그룹화 → 그룹별 IN-list UPDATE 1회 (이슈 #89).
+        // 같은 dispatch 사이클의 동일 외부 IO 실패는 거의 같은 그룹에 묶이므로 N → 1~3 회로 줄어든다.
+        failures
+            .groupBy { it.error to it.nextAttemptAt }
+            .forEach { (key, group) ->
+                val (error, nextAttemptAt) = key
+                repository.markFailedBatch(group.map { it.id }, error, nextAttemptAt)
+            }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     override fun markDeadAll(deads: List<DeadUpdate>) {
-        deads.forEach { repository.markDead(it.id, it.error) }
+        if (deads.isEmpty()) return
+        // 동일 error 그룹별 IN-list UPDATE — 이슈 #89.
+        deads
+            .groupBy { it.error }
+            .forEach { (error, group) ->
+                repository.markDeadBatch(group.map { it.id }, error)
+            }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
