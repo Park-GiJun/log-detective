@@ -11,9 +11,9 @@ import com.gijun.logdetect.ingest.application.port.out.LogEventPersistencePort
 import com.gijun.logdetect.ingest.application.port.out.OutboxPayloadSerializerPort
 import com.gijun.logdetect.ingest.application.port.out.OutboxPersistencePort
 import com.gijun.logdetect.ingest.application.port.out.SearchIndexResolverPort
-import com.gijun.logdetect.ingest.domain.Clock
 import com.gijun.logdetect.ingest.domain.enums.ChannelType
 import com.gijun.logdetect.ingest.domain.model.Outbox
+import com.gijun.logdetect.ingest.domain.port.Clock
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 

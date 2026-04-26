@@ -4,10 +4,10 @@ import com.gijun.logdetect.ingest.application.port.`in`.command.DispatchOutboxUs
 import com.gijun.logdetect.ingest.application.port.out.LogEventMessagePort
 import com.gijun.logdetect.ingest.application.port.out.LogEventSearchPort
 import com.gijun.logdetect.ingest.application.port.out.OutboxPersistencePort
-import com.gijun.logdetect.ingest.domain.Clock
 import com.gijun.logdetect.ingest.domain.enums.ChannelType
 import com.gijun.logdetect.ingest.domain.enums.OutboxStatus
 import com.gijun.logdetect.ingest.domain.model.Outbox
+import com.gijun.logdetect.ingest.domain.port.Clock
 import com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.outbox.repository.OutboxJpaRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach

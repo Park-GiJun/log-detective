@@ -18,9 +18,6 @@ import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder
  *
  * 이슈 #96 — `BeanPostProcessor` 가 deactivateDefaultTyping + deny-all
  * PolymorphicTypeValidator 를 강제 적용하는지 추가 검증.
- *
- * 주의 — Kotest 6.1.0 + Kotlin 2.3 호환성 이슈로 빌드 시 자동 실행되지 않을 수
- * 있다. IDE 에서 개별 실행하여 검증한다.
  */
 class JacksonConfigTest : DescribeSpec({
 

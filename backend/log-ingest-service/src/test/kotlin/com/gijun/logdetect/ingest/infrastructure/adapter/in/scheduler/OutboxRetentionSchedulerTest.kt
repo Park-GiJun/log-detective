@@ -1,24 +1,26 @@
 package com.gijun.logdetect.ingest.infrastructure.adapter.`in`.scheduler
 
 import com.gijun.logdetect.ingest.application.port.out.OutboxPersistencePort
-import com.gijun.logdetect.ingest.domain.Clock
+import com.gijun.logdetect.ingest.domain.port.Clock
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
+import org.springframework.scheduling.annotation.Scheduled
 import java.time.Duration
 import java.time.Instant
 
 /**
  * OutboxRetentionScheduler 단위 테스트.
  *
- * 주의 — Kotest 6.0.4 + Kotlin 2.3 호환을 위해 다른 테스트와 동일한 스타일을 사용한다.
- *
  * 이슈 #95 — multi-instance 분산 락 (PG advisory lock) 동작 회귀 검증.
+ * 이슈 #99 — @Scheduled 메타데이터 (cron / zone) reflection 검증.
  */
 class OutboxRetentionSchedulerTest : DescribeSpec({
 
@@ -178,6 +180,30 @@ class OutboxRetentionSchedulerTest : DescribeSpec({
             scheduler.purge()
 
             captured.captured.getValue("lockId") shouldBe OutboxRetentionScheduler.RETENTION_LOCK_ID
+        }
+    }
+
+    // @Scheduled 가 실제로 클래스에 부착되어 있는지를 reflection 으로 검증한다 (이슈 #99).
+    // Spring 컨텍스트를 띄우지 않고도 메타데이터 회귀를 막을 수 있어 단위 테스트에 적합하다.
+    describe("@Scheduled 메타데이터 검증") {
+        it("purge 메서드에 @Scheduled 어노테이션이 부착되어 있다") {
+            val method = OutboxRetentionScheduler::class.java.getDeclaredMethod("purge")
+            val scheduled = method.getAnnotation(Scheduled::class.java)
+            scheduled shouldNotBe null
+        }
+
+        it("@Scheduled.cron 은 SpEL placeholder 를 기본값과 함께 보유한다") {
+            val method = OutboxRetentionScheduler::class.java.getDeclaredMethod("purge")
+            val scheduled = method.getAnnotation(Scheduled::class.java)
+            // 기본값이 항상 Spring 표현식으로 노출되어 환경별 오버라이드가 가능해야 한다.
+            scheduled.cron shouldContain "logdetect.outbox.retention.cron"
+            scheduled.cron shouldContain "0 0 3 * * *"
+        }
+
+        it("@Scheduled.zone 은 Asia/Seoul (KST) 이다") {
+            val method = OutboxRetentionScheduler::class.java.getDeclaredMethod("purge")
+            val scheduled = method.getAnnotation(Scheduled::class.java)
+            scheduled.zone shouldBe "Asia/Seoul"
         }
     }
 })

@@ -10,7 +10,7 @@ import com.gijun.logdetect.ingest.application.port.out.LogEventSearchPort
 import com.gijun.logdetect.ingest.application.port.out.OutboxPayloadSerializerPort
 import com.gijun.logdetect.ingest.application.port.out.OutboxPersistencePort
 import com.gijun.logdetect.ingest.application.port.out.SearchIndexResolverPort
-import com.gijun.logdetect.ingest.domain.Clock
+import com.gijun.logdetect.ingest.domain.port.Clock
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration

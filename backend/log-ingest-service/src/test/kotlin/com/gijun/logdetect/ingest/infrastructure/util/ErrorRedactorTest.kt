@@ -7,9 +7,6 @@ import io.kotest.matchers.string.shouldNotContain
 
 /**
  * ErrorRedactor 단위 테스트.
- *
- * 주의 — Kotest 6.1.0 + Kotlin 2.3 호환성 이슈 (#70) 로 빌드 시 자동 실행되지
- * 않을 수 있다. IDE 에서 개별 실행하여 검증한다.
  */
 class ErrorRedactorTest : DescribeSpec({
 

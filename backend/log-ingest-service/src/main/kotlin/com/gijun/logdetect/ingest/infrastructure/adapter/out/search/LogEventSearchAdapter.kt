@@ -69,9 +69,14 @@ class LogEventSearchAdapter(
         val estimated = documents.sumOf { 128 + it.payload.size }
         val out = java.io.ByteArrayOutputStream(estimated)
         documents.forEach { doc ->
-            // 메타 라인. _index / _id 는 ASCII 안전 가정 (UUID + logs-yyyy.MM.dd) — JSON escape 불필요.
-            val meta = """{"index":{"_index":"${doc.index}","_id":"${doc.id}"}}"""
-            out.write(meta.toByteArray(Charsets.UTF_8))
+            // 메타 라인 — string 보간 후 toByteArray 라운드 트립을 피하기 위해 고정 segment 들을
+            // 직접 ByteArrayOutputStream 으로 흘려 쓴다 (이슈 #99). _index / _id 는 ASCII 안전 가정
+            // (UUID + logs-yyyy.MM.dd) 이라 JSON escape 불필요.
+            out.write(META_PREFIX)
+            out.write(doc.index.toByteArray(Charsets.UTF_8))
+            out.write(META_INFIX)
+            out.write(doc.id.toByteArray(Charsets.UTF_8))
+            out.write(META_SUFFIX)
             out.write(NEWLINE)
             out.write(doc.payload)
             out.write(NEWLINE)
@@ -81,5 +86,11 @@ class LogEventSearchAdapter(
 
     companion object {
         private val NEWLINE = "\n".toByteArray(Charsets.UTF_8)
+        // {"index":{"_index":"
+        private val META_PREFIX = """{"index":{"_index":"""".toByteArray(Charsets.UTF_8)
+        // ","_id":"
+        private val META_INFIX = """","_id":"""".toByteArray(Charsets.UTF_8)
+        // "}}
+        private val META_SUFFIX = """"}}""".toByteArray(Charsets.UTF_8)
     }
 }
