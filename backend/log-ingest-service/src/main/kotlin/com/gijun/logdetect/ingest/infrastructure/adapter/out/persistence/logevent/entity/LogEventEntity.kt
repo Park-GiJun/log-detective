@@ -1,4 +1,4 @@
-package com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.logEvent.entity
+package com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.logevent.entity
 
 import com.gijun.logdetect.common.domain.enums.LogLevel
 import com.gijun.logdetect.common.domain.model.LogEvent

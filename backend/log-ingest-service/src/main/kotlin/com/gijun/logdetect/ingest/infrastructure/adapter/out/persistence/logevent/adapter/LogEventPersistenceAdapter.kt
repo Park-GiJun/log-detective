@@ -1,10 +1,10 @@
-package com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.logEvent.adapter
+package com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.logevent.adapter
 
 import com.gijun.logdetect.common.domain.model.LogEvent
 import com.gijun.logdetect.ingest.application.port.out.LogEventPersistencePort
 import com.gijun.logdetect.ingest.domain.model.IngestedLogEvent
-import com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.logEvent.entity.LogEventEntity
-import com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.logEvent.repository.LogEventJpaRepository
+import com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.logevent.entity.LogEventEntity
+import com.gijun.logdetect.ingest.infrastructure.adapter.out.persistence.logevent.repository.LogEventJpaRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Component
