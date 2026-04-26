@@ -306,7 +306,125 @@ interface DetectionRule {
 
 ---
 
-## 10. 오픈 이슈
+## 10. 시간대 정책
+
+> 출처: 이슈 #31, #66, 리뷰 2026-04-26 e1ae759 (윤지아 Domain Expert / 한소율 Quality Lead)
+
+### 10.1 원칙
+
+| 항목 | 정책 |
+|---|---|
+| **저장 (DB / Kafka payload)** | **UTC** 고정 (`TIMESTAMPTZ` / `Instant`) |
+| **표시 (대시보드 / 리포트)** | **KST(UTC+9)** — 사용자 노출 시점에 변환 |
+| **룰 윈도우 정렬** | UTC — 모든 슬라이딩 윈도우 / 비율 계산은 UTC 기준 |
+| **`LogEvent.timestamp`** | **클라이언트 입력 신뢰** — 외부 로그 소스가 기록한 발생 시각 |
+| **`LogEvent.ingestAt` (서버 시각)** | 서버 UTC `Instant.now()` — 신뢰 가능한 기준선 |
+
+### 10.2 KST/UTC 경계 처리
+
+- ES 인덱스 키 `logs-yyyy.MM.dd` 는 **UTC 기준** (`LogEventCommandHandler.kt` 의 `event.timestamp.atOffset(ZoneOffset.UTC)`)
+- `R004 OffHourAccessRule` 의 "00:00~05:00 관리자 접근" 은 **KST 의도** — 룰 평가 시점에 `ZoneId.of("Asia/Seoul")` 로 변환하여 비교한다 (저장은 UTC 유지)
+- 클라이언트 timestamp 가 미래 시각이거나 과도하게 과거(예: 24시간 초과)인 경우 ingest 단계에서 거부 또는 `ingestAt` 로 보정 — TODO
+
+### 10.3 알려진 영향 (TODO)
+
+- [ ] **R001 BruteForce (5분 윈도우)** — KST 자정(15:00 UTC) 경계에서 동일 IP 이벤트가 다른 ES 인덱스로 분산. UTC 윈도우 정렬을 유지하므로 룰 정확성에는 영향 없으나, ES 검색/감사 시점에 인덱스 가로질러 조회 필요
+- [ ] **R004 OffHour** — UTC 인덱스에 저장된 KST 시간대 이벤트를 룰 평가 시 정확히 매핑하는지 통합 테스트로 보강
+- [ ] 운영 정책이 KST 인덱스를 요구할 경우, ES 인덱스 키 산출을 `ZoneId.of("Asia/Seoul")` 로 전환할지 재검토 (저장 정책은 UTC 유지)
+
+---
+
+## 11. 채널별 의미
+
+> 출처: 이슈 #66 — Outbox `channel` 컬럼 (`ES | KAFKA | FILE | OTHERS`) 의 도메인 의미 명문화
+
+| 채널 | 의미 | 소비자 | 비고 |
+|---|---|---|---|
+| **KAFKA** | **탐지 입력** — 실시간 룰 엔진의 1차 진입점 | `log-detection-service` (`logs.raw` 컨슈머) | 발행 SLA 가 가장 짧음 (R002 < 10s) |
+| **ES** | **검색 / 감사** — Kibana 조회, 사후 포렌식, 컴플라이언스 보존 | 사람 / 외부 도구 | 발행 SLA 비교적 여유 있음 (R003/R005/R006 < 5분) |
+| **FILE** | **확장 슬롯** — 외부 시스템(SIEM, 로그 아카이빙, 콜드 스토리지) 연동 예약 | 미정 | Phase 6 이후 도입 검토. 현재 코드 경로 비활성 |
+| **OTHERS** | **확장 슬롯** — Webhook, 외부 API push, 비표준 어댑터 예약 | 미정 | 예: 외부 보안팀 SOC, 3rd-party 위협 인텔 |
+
+원칙:
+- **KAFKA = 탐지 정확성에 직결** → SLA 위반 시 미탐 위험 (이슈 #50 참조)
+- **ES = 사후 분석에 직결** → 일시적 지연 허용, 단 결국 발행 보장(at-least-once)
+- 신규 채널 추가 시 위 표에 의미 / 소비자 / SLA 명시 후 코드 반영
+
+---
+
+## 12. 어그리거트 정책
+
+> 출처: 이슈 #58, #66 — `Outbox.aggregateId` 의 도메인 책임 명확화 (윤지아 Domain Expert D3)
+
+### 12.1 식별자 책임 분리
+
+| 식별자 | 책임 | 사용처 |
+|---|---|---|
+| **`eventId` (UUID)** | **멱등성 키** — 컨슈머 중복 제거 | ES `_id`, Detection 컨슈머 dedupe, 사후 추적 |
+| **`aggregateId`** | **파티션 / 순서 키** — 어그리거트 단위 직렬화, Kafka 파티션 일관성 | Kafka `ProducerRecord.key`, Outbox 폴링 그룹화 |
+
+같은 어그리거트의 이벤트는 같은 파티션으로 흘러 시간 순서가 보장되어야 한다. 멱등성 키와 파티션 키를 한 필드에 겸용하면 향후 "동일 사용자 이벤트 순서 보장" 채널 추가 시 일관성이 깨진다.
+
+### 12.2 룰별 어그리거트
+
+| 룰 | 어그리거트 키 | 근거 |
+|---|---|---|
+| **R001 BruteForce** | `ip` | 동일 IP 의 5분 시도 횟수가 룰 단위 |
+| **R002 SQLi** | `eventId` (어그리거트 없음) | 단건 패턴 매칭 — 순서 무관 |
+| **R003 ErrorSpike** | `source` | 서비스(소스) 단위 ERROR 비율 |
+| **R004 OffHour** | `userId` | 사용자 단위 시간대 접근 |
+| **R005 Geo** | `userId` | 사용자 단위 위치 이동 추적 |
+| **R006 RareEvent** | `userId + source` | 사용자×서비스 단위 희귀도 |
+
+### 12.3 알려진 영향 (TODO)
+
+- [ ] 현재 `LogEventCommandHandler.outboxesFor` 는 `aggregateId = event.eventId.toString()` 로 설정 — 위 정책에 맞춰 도메인 어그리거트 키 (룰별 분기) 로 변경 필요
+- [ ] Outbox 도메인에 `idempotencyKey` 필드 분리 신설 (= `eventId` 그대로 보존) → Kafka send 시 `aggregateId` 를 파티션 키로, 컨슈머는 `idempotencyKey` 로 dedupe
+- [ ] 룰별 어그리거트가 다르므로, ingest 단계에서 단일 키를 정할 수 없음 → 채널/룰별로 별도 outbox row 를 두거나, 컨슈머 측에서 re-key 하는 방식 결정 필요 (설계 결정 사항)
+- 참조: `doc/lessons/time-and-id-policy.md`
+
+---
+
+## 13. 룰별 SLA
+
+> 출처: 이슈 #50, #66 — 발행 지연이 탐지 정확성에 미치는 영향 (윤지아 Domain Expert D2)
+
+### 13.1 발행 SLA 표
+
+| 룰 | 윈도우 | 허용 발행 지연 (`logs.raw` 도착 기준) |
+|---|---|---|
+| **R001 BruteForce** | 5분 | **< 30s** |
+| **R002 SQLi** | 즉시 (단건) | **< 10s** |
+| **R003 ErrorSpike** | 1시간 (비율) | **< 5분** |
+| **R004 OffHour** | 시간대 (KST) | **< 1분** |
+| **R005 Geo** | 1시간 | **< 5분** |
+| **R006 RareEvent** | 1일 | **< 5분** |
+
+"발행 지연" = `LogEvent.timestamp` 와 `logs.raw` 컨슈머 도착 시각의 차이.
+
+### 13.2 현재 구현 vs SLA
+
+- **OutboxPublisher 백오프**: `5s × 2^n`, `MAX_BACKOFF_SHIFT = 6` → **상한 5분 (5 × 2^6 = 320s)**
+- 4회 실패 시 80s+ 지연 — **R001 30s SLA 위반**, **R002 10s SLA 위반**, **R004 1분 SLA 위반 가능**
+- R003/R005/R006 (5분 허용) 은 현재 백오프 상한 안에 들어옴
+
+### 13.3 해결 방향 (TODO)
+
+- [ ] **옵션 A — high-priority outbox 채널 분리**
+  - SLA < 1분 룰(R001/R002/R004)을 별도 큐(`outbox_messages_high`)로 분리, 폴링 주기/백오프 다르게 설정
+  - 장점: 룰별 SLA 차등 보장 / 단점: 운영 복잡도 증가
+- [ ] **옵션 B — 백오프 상한 단축**
+  - `MAX_BACKOFF_SHIFT = 6` → 3 (5 × 2^3 = 40s) 또는 2 (20s) 로 단축, `MAX_ATTEMPTS` 를 늘려 총 재시도 시간 보존
+  - 장점: 단일 채널 유지 / 단점: 외부 시스템 장애 시 부하 증가
+- [ ] **옵션 C — 룰 윈도우 보정**
+  - 컨슈머 측에서 늦게 도착한 이벤트를 grace period(예: +30s)로 윈도우 재평가
+  - 장점: 발행 측 무관 / 단점: 룰 엔진 복잡도 증가, 알림 지연
+
+현재 단계에서는 **옵션 B (백오프 상한 단축) 우선** 검토 — 운영 복잡도 최소화. SLA 미달 사례가 누적되면 옵션 A 로 전환.
+
+---
+
+## 14. 오픈 이슈
 
 - [ ] Spring Boot 4.0.5 + Kotlin 2.3.20 조합의 잠재 문제 — Spring Boot 4.1 릴리즈 시점에 재검증
 - [ ] ES 8.17 + Spring Data Elasticsearch BOM 관리 버전 호환성 확인 필요
