@@ -27,6 +27,12 @@ logdetect:
     # PII 마스킹 토글 — true 시 outbox.payload 의 ip/userId 가 마스킹되어 저장된다.
     # 다운스트림(ES/Kafka) 도 마스킹된 데이터를 받게 되므로 운영 결정에 따라 활성화.
     payload-pii-mask: ${OUTBOX_PAYLOAD_PII_MASK:false}
+    pii:
+      # MASK — IPv4 /16, IPv6 앞 64bit, userId 길이 보존 * (가독성 우선).
+      # HASH — HMAC-SHA256(salt) deterministic pseudonymization (GDPR 강화).
+      mode: ${OUTBOX_PII_MODE:MASK}
+      # HMAC salt — HASH 모드 활성화 시 반드시 지정. 누설 시 회전 필요.
+      salt: ${OUTBOX_PII_SALT:}
     retention:
       # PUBLISHED 행 보관 기한 (일). 기한 초과 시 retention 잡이 purge.
       published-days: ${OUTBOX_RETENTION_PUBLISHED_DAYS:7}
