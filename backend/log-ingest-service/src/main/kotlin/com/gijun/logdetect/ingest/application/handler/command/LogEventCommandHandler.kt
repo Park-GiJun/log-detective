@@ -26,6 +26,7 @@ import java.util.UUID
  *
  * 인프라 의존 분리 (이슈 #45):
  * - 직렬화: [OutboxPayloadSerializerPort] 가 책임 (Jackson 어댑터에 격리).
+ *   PII 마스킹 토글도 Serializer 어댑터 내부에 두어, application 계층은 정책을 모르게 한다 (이슈 #49).
  * - ES 인덱스명: [SearchIndexResolverPort] 가 결정 (ES 운영 정책이 application 으로 새지 않음).
  * - 시간: [Clock] 도메인 포트로 주입 (이슈 #52).
  *
@@ -59,6 +60,7 @@ open class LogEventCommandHandler(
 
     private fun outboxesFor(event: LogEvent): List<Outbox> {
         // 한 이벤트당 직렬화 1회 — 두 outbox 행이 동일 payload String 을 공유 (#46 완화).
+        // PII 마스킹 토글은 Serializer 어댑터 내부에서 적용된다 (이슈 #49).
         val payload = payloadSerializerPort.serialize(event)
         val esIndex = searchIndexResolverPort.resolveIndexName(event.timestamp)
         val aggregateId = event.eventId.toString()
