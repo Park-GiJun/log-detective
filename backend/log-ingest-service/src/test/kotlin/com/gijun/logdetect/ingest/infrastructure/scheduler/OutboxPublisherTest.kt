@@ -64,12 +64,12 @@ class OutboxPublisherTest : DescribeSpec({
 
             verify(exactly = 0) { searchPort.index(any()) }
             verify(exactly = 0) { messagePort.publishRaw(any()) }
-            verify(exactly = 0) { outboxPort.markPublished(any()) }
+            verify(exactly = 0) { outboxPort.markPublishedAll(any()) }
         }
     }
 
     describe("dispatch — ES 채널") {
-        it("ES index 성공 시 markPublished 를 호출한다") {
+        it("ES index 성공 시 markPublishedAll 로 일괄 호출한다") {
             val mapper = objectMapperForTest()
             val event = sampleEvent()
             val payload = mapper.writeValueAsString(event)
@@ -85,12 +85,12 @@ class OutboxPublisherTest : DescribeSpec({
 
             verify(exactly = 1) { searchPort.index(any()) }
             verify(exactly = 0) { messagePort.publishRaw(any()) }
-            verify(exactly = 1) { outboxPort.markPublished(42L) }
+            verify(exactly = 1) { outboxPort.markPublishedAll(listOf(42L)) }
         }
     }
 
     describe("dispatch — KAFKA 채널") {
-        it("Kafka publishRaw 성공 시 markPublished 를 호출한다") {
+        it("Kafka publishRaw 성공 시 markPublishedAll 로 일괄 호출한다") {
             val mapper = objectMapperForTest()
             val event = sampleEvent()
             val payload = mapper.writeValueAsString(event)
@@ -106,7 +106,7 @@ class OutboxPublisherTest : DescribeSpec({
 
             verify(exactly = 0) { searchPort.index(any()) }
             verify(exactly = 1) { messagePort.publishRaw(any()) }
-            verify(exactly = 1) { outboxPort.markPublished(7L) }
+            verify(exactly = 1) { outboxPort.markPublishedAll(listOf(7L)) }
         }
     }
 
@@ -125,7 +125,7 @@ class OutboxPublisherTest : DescribeSpec({
             publisher.pollAndDispatch()
 
             verify(exactly = 1) { outboxPort.markDead(99L, match { it.contains("unsupported channel") }) }
-            verify(exactly = 0) { outboxPort.markPublished(any()) }
+            verify(exactly = 0) { outboxPort.markPublishedAll(any()) }
             verify(exactly = 0) { searchPort.index(any()) }
             verify(exactly = 0) { messagePort.publishRaw(any()) }
         }
@@ -167,7 +167,7 @@ class OutboxPublisherTest : DescribeSpec({
             publisher.pollAndDispatch()
 
             verify(exactly = 1) { outboxPort.markFailed(1L, match { it.contains("ES down") }, any()) }
-            verify(exactly = 0) { outboxPort.markPublished(any()) }
+            verify(exactly = 0) { outboxPort.markPublishedAll(any()) }
 
             // 5s shl 1 = 10s. 호출 시점 부근 ± 1s 허용.
             val deltaSec = nextSlot.captured.epochSecond - before.epochSecond
@@ -214,7 +214,7 @@ class OutboxPublisherTest : DescribeSpec({
 
             verify(exactly = 1) { outboxPort.markDead(5L, match { it.contains("permanent failure") }) }
             verify(exactly = 0) { outboxPort.markFailed(any(), any(), any()) }
-            verify(exactly = 0) { outboxPort.markPublished(any()) }
+            verify(exactly = 0) { outboxPort.markPublishedAll(any()) }
         }
     }
 
@@ -239,8 +239,8 @@ class OutboxPublisherTest : DescribeSpec({
 
             verify(exactly = 1) { searchPort.index(any()) }
             verify(exactly = 1) { messagePort.publishRaw(any()) }
-            verify(exactly = 1) { outboxPort.markPublished(1L) }
-            verify(exactly = 1) { outboxPort.markPublished(2L) }
+            // ES (1L) + KAFKA (2L) 성공 → 한 번의 markPublishedAll 로 일괄 처리.
+            verify(exactly = 1) { outboxPort.markPublishedAll(listOf(1L, 2L)) }
             verify(exactly = 1) { outboxPort.markDead(3L, any()) }
         }
     }

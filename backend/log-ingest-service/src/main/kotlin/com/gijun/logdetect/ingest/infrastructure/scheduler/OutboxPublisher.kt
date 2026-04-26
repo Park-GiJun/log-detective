@@ -30,15 +30,25 @@ class OutboxPublisher(
         val pending = outboxPersistencePort.fetchPending(BATCH_SIZE)
         if (pending.isEmpty()) return
 
-        var success = 0
+        // 성공 id 는 모아 한 번의 UPDATE 로 PUBLISHED 처리 (N+1 회피).
+        // 실패는 행마다 error 메시지/nextAttemptAt 이 달라 일괄 어려움 — 개별 UPDATE 유지.
+        val publishedIds = ArrayList<Long>(pending.size)
         var failed = 0
         pending.forEach {
-            if (dispatch(it)) success++ else failed++
+            if (dispatch(it, publishedIds)) Unit else failed++
         }
-        logger.debug("Outbox dispatch — total: {}, success: {}, failed: {}", pending.size, success, failed)
+        if (publishedIds.isNotEmpty()) {
+            outboxPersistencePort.markPublishedAll(publishedIds)
+        }
+        logger.debug(
+            "Outbox dispatch — total: {}, success: {}, failed: {}",
+            pending.size,
+            publishedIds.size,
+            failed,
+        )
     }
 
-    private fun dispatch(outbox: Outbox): Boolean {
+    private fun dispatch(outbox: Outbox, publishedIds: MutableList<Long>): Boolean {
         val id = outbox.id ?: return false
         return try {
             val event = objectMapper.readValue(outbox.payload, LogEvent::class.java)
@@ -50,7 +60,7 @@ class OutboxPublisher(
                     return false
                 }
             }
-            outboxPersistencePort.markPublished(id)
+            publishedIds += id
             true
         } catch (e: Exception) {
             handleFailure(outbox, e)
