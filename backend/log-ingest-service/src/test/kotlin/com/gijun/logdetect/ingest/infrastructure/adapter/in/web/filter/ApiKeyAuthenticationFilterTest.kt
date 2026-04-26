@@ -113,21 +113,46 @@ class ApiKeyAuthenticationFilterTest : DescribeSpec({
         }
     }
 
+    describe("PERMIT_ALL_PATHS — Filter / SecurityConfig 공유 상수") {
+        it("actuator/health, actuator/info 만 포함 (의도치 않은 추가 차단)") {
+            ApiKeyAuthenticationFilter.PERMIT_ALL_PATHS shouldBe listOf(
+                "/actuator/health",
+                "/actuator/info",
+            )
+        }
+
+        it("isPermitAllPath — 정확히 매칭되는 경로는 true") {
+            ApiKeyAuthenticationFilter.isPermitAllPath("/actuator/health") shouldBe true
+            ApiKeyAuthenticationFilter.isPermitAllPath("/actuator/info") shouldBe true
+        }
+
+        it("isPermitAllPath — 하위 경로(startsWith) 도 true") {
+            ApiKeyAuthenticationFilter.isPermitAllPath("/actuator/health/liveness") shouldBe true
+            ApiKeyAuthenticationFilter.isPermitAllPath("/actuator/health/readiness") shouldBe true
+        }
+
+        it("isPermitAllPath — 다른 actuator 경로는 false") {
+            ApiKeyAuthenticationFilter.isPermitAllPath("/actuator/metrics") shouldBe false
+            ApiKeyAuthenticationFilter.isPermitAllPath("/actuator/env") shouldBe false
+        }
+
+        it("isPermitAllPath — 비즈니스 API 는 false") {
+            ApiKeyAuthenticationFilter.isPermitAllPath("/api/v1/logs") shouldBe false
+        }
+    }
+
     describe("shouldNotFilter — 헬스체크 우회") {
         val filter = ApiKeyAuthenticationFilter(expectedApiKey = EXPECTED_KEY)
 
-        it("/actuator/health 는 필터 우회") {
-            val request = MockHttpServletRequest("GET", "/actuator/health")
-            filter.shouldNotFilter(request) shouldBe true
+        it("PERMIT_ALL_PATHS 의 모든 경로는 우회") {
+            ApiKeyAuthenticationFilter.PERMIT_ALL_PATHS.forEach { path ->
+                val request = MockHttpServletRequest("GET", path)
+                filter.shouldNotFilter(request) shouldBe true
+            }
         }
 
         it("/actuator/health/liveness 는 필터 우회 (하위 경로)") {
             val request = MockHttpServletRequest("GET", "/actuator/health/liveness")
-            filter.shouldNotFilter(request) shouldBe true
-        }
-
-        it("/actuator/info 는 필터 우회") {
-            val request = MockHttpServletRequest("GET", "/actuator/info")
             filter.shouldNotFilter(request) shouldBe true
         }
 

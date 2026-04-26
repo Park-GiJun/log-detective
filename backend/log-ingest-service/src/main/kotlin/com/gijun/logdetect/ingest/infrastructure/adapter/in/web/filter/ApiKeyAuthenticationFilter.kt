@@ -76,8 +76,9 @@ class ApiKeyAuthenticationFilter(
 
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
         // SecurityFilterChain permitAll 경로와 동기화 — 헬스체크는 인증 우회.
+        // 경로 정의를 PERMIT_ALL_PATHS 단일 상수로 모아 SecurityConfig 와의 표류(drift) 차단.
         val path = request.requestURI ?: return false
-        return path.startsWith("/actuator/health") || path == "/actuator/info"
+        return isPermitAllPath(path)
     }
 
     private fun timingSafeEquals(provided: String, expected: String): Boolean {
@@ -91,6 +92,21 @@ class ApiKeyAuthenticationFilter(
         const val HEADER_NAME = "X-API-Key"
         const val CLIENT_PRINCIPAL = "api-client"
         const val ROLE_INGEST = "ROLE_INGEST"
+
+        /**
+         * 인증 우회 경로 — Filter / SecurityConfig 가 동일 소스를 참조해 표류 방지.
+         * 운영 LB 헬스체크 + 디버그용 info 만 허용. 본문은 민감 정보 미포함이라 인증 면제 가능.
+         */
+        val PERMIT_ALL_PATHS: List<String> = listOf(
+            "/actuator/health",
+            "/actuator/info",
+        )
+
+        /**
+         * 경로가 PERMIT_ALL_PATHS 중 하나로 시작하면 true.
+         * `/actuator/health/liveness` 같은 하위 경로도 허용 — startsWith 매칭.
+         */
+        fun isPermitAllPath(path: String): Boolean = PERMIT_ALL_PATHS.any { path.startsWith(it) }
 
         private const val UNAUTHORIZED_BODY =
             """{"error":"Unauthorized","message":"Invalid or missing API key"}"""
